@@ -216,7 +216,7 @@ const createWindow = () => {
   const mainWindow = new BrowserWindow({
     width: 1280,
     height: 720,
-    show: false, // Reveal once the launch screen has painted to avoid a blank flash.
+    show: false, // Reveal once the app URL is ready to avoid a blank flash.
     backgroundColor: "#f3f5ff",
     icon: path.join(resourceBaseDir, "resources/ui/assets/images/presenton_short_filled.png"),
     webPreferences: {
@@ -497,23 +497,8 @@ app.whenReady().then(async () => {
   );
   updateSentryRuntimeContext(chromiumCacheRecovery);
 
-  // Create main window and show the launch page while local servers boot.
+  // Create the main window hidden; the app splash handles the visible startup state.
   createWindow();
-  const initialWindow = getLiveMainWindow();
-  if (initialWindow && !initialWindow.webContents.isDestroyed()) {
-    void initialWindow
-      .loadFile(path.join(resourceBaseDir, "resources/ui/homepage/index.html"))
-      .catch((error) => {
-        if (!initialWindow.isDestroyed()) {
-          safeWarn("[Presenton] Failed to load startup page", error);
-        }
-      });
-  }
-
-  // Ensure the launch screen stays visible and focused during the server boot.
-  const launchWindow = getLiveMainWindow();
-  launchWindow?.show();
-  launchWindow?.focus();
 
   try {
     setUserConfig({
