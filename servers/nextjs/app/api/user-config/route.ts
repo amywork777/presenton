@@ -10,6 +10,13 @@ const AUTH_FIELDS = new Set([
   "AUTH_USERNAME",
   "AUTH_PASSWORD_HASH",
   "AUTH_SECRET_KEY",
+  "CODEX_ACCESS_TOKEN",
+  "CODEX_REFRESH_TOKEN",
+  "CODEX_TOKEN_EXPIRES",
+  "CODEX_ACCOUNT_ID",
+  "CODEX_USERNAME",
+  "CODEX_EMAIL",
+  "CODEX_IS_PRO",
 ]);
 
 function stripAuthFields(config: Record<string, unknown>) {
@@ -95,38 +102,36 @@ export async function POST(request: Request) {
     );
     const mergedConfig = updateUserConfigFile<LLMConfig>(
       userConfigPath,
-      (existingConfig) => ({
-        ...existingConfig,
-        ...Object.fromEntries(definedIncomingEntries),
-        USE_CUSTOM_URL:
-          userConfig.USE_CUSTOM_URL === undefined
-            ? existingConfig.USE_CUSTOM_URL
-            : userConfig.USE_CUSTOM_URL,
-        OPEN_WEBUI_IMAGE_URL:
-          userConfig.OPEN_WEBUI_IMAGE_URL || existingConfig.OPEN_WEBUI_IMAGE_URL,
-        OPEN_WEBUI_IMAGE_API_KEY:
-          userConfig.OPEN_WEBUI_IMAGE_API_KEY || existingConfig.OPEN_WEBUI_IMAGE_API_KEY,
-        CODEX_MODEL: userConfig.CODEX_MODEL || existingConfig.CODEX_MODEL,
-        CODEX_ACCESS_TOKEN: existingConfig.CODEX_ACCESS_TOKEN,
-        CODEX_REFRESH_TOKEN: existingConfig.CODEX_REFRESH_TOKEN,
-        CODEX_TOKEN_EXPIRES: existingConfig.CODEX_TOKEN_EXPIRES,
-        CODEX_ACCOUNT_ID: existingConfig.CODEX_ACCOUNT_ID,
-        CODEX_USERNAME: existingConfig.CODEX_USERNAME,
-        CODEX_EMAIL: existingConfig.CODEX_EMAIL,
-        CODEX_IS_PRO: existingConfig.CODEX_IS_PRO,
-        DISABLE_IMAGE_GENERATION: Object.prototype.hasOwnProperty.call(
-          userConfig,
-          "DISABLE_IMAGE_GENERATION"
-        )
-          ? userConfig.DISABLE_IMAGE_GENERATION
-          : existingConfig.DISABLE_IMAGE_GENERATION,
-        DISABLE_ANONYMOUS_TRACKING: Object.prototype.hasOwnProperty.call(
-          userConfig,
-          "DISABLE_ANONYMOUS_TRACKING"
-        )
-          ? userConfig.DISABLE_ANONYMOUS_TRACKING
-          : existingConfig.DISABLE_ANONYMOUS_TRACKING,
-      })
+      (existingConfig) => {
+        const existingSafe = stripAuthFields(
+          existingConfig as Record<string, unknown>
+        ) as LLMConfig;
+        return {
+          ...existingSafe,
+          ...Object.fromEntries(definedIncomingEntries),
+          USE_CUSTOM_URL:
+            userConfig.USE_CUSTOM_URL === undefined
+              ? existingSafe.USE_CUSTOM_URL
+              : userConfig.USE_CUSTOM_URL,
+          OPEN_WEBUI_IMAGE_URL:
+            userConfig.OPEN_WEBUI_IMAGE_URL || existingSafe.OPEN_WEBUI_IMAGE_URL,
+          OPEN_WEBUI_IMAGE_API_KEY:
+            userConfig.OPEN_WEBUI_IMAGE_API_KEY || existingSafe.OPEN_WEBUI_IMAGE_API_KEY,
+          CODEX_MODEL: userConfig.CODEX_MODEL || existingSafe.CODEX_MODEL,
+          DISABLE_IMAGE_GENERATION: Object.prototype.hasOwnProperty.call(
+            userConfig,
+            "DISABLE_IMAGE_GENERATION"
+          )
+            ? userConfig.DISABLE_IMAGE_GENERATION
+            : existingSafe.DISABLE_IMAGE_GENERATION,
+          DISABLE_ANONYMOUS_TRACKING: Object.prototype.hasOwnProperty.call(
+            userConfig,
+            "DISABLE_ANONYMOUS_TRACKING"
+          )
+            ? userConfig.DISABLE_ANONYMOUS_TRACKING
+            : existingSafe.DISABLE_ANONYMOUS_TRACKING,
+        };
+      }
     );
     return NextResponse.json(
       stripAuthFields(mergedConfig as Record<string, unknown>)

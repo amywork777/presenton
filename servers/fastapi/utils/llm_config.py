@@ -1,4 +1,3 @@
-import time
 from typing import Optional
 
 from fastapi import HTTPException
@@ -39,10 +38,6 @@ from utils.get_env import (
     get_bedrock_region_env,
     get_cerebras_api_key_env,
     get_cerebras_base_url_env,
-    get_codex_access_token_env,
-    get_codex_account_id_env,
-    get_codex_refresh_token_env,
-    get_codex_token_expires_env,
     get_custom_llm_api_key_env,
     get_custom_llm_url_env,
     get_deepseek_api_key_env,
@@ -70,12 +65,7 @@ from utils.get_env import (
 from utils.available_models import normalize_openai_compatible_base_url
 from utils.llm_provider import get_llm_provider
 from utils.parsers import parse_bool_or_none
-from utils.set_env import (
-    set_codex_access_token_env,
-    set_codex_account_id_env,
-    set_codex_refresh_token_env,
-    set_codex_token_expires_env,
-)
+from utils.oauth.openai_codex import CodexAuthError, resolve_codex_runtime_credentials
 
 
 def enable_web_grounding() -> bool:
@@ -84,46 +74,6 @@ def enable_web_grounding() -> bool:
 
 def disable_thinking() -> bool:
     return parse_bool_or_none(get_disable_thinking_env()) or False
-
-
-def _get_codex_access_token() -> str:
-    access_token = get_codex_access_token_env()
-    if not access_token:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Codex OAuth access token is not set. Please authenticate via "
-                "/api/v1/ppt/codex/auth/initiate"
-            ),
-        )
-
-    expires_str = get_codex_token_expires_env()
-    if expires_str:
-        try:
-            expires_ms = int(expires_str)
-            now_ms = int(time.time() * 1000)
-            if now_ms >= expires_ms - 60_000:
-                refresh_token = get_codex_refresh_token_env()
-                if refresh_token:
-                    from utils.oauth.openai_codex import (
-                        TokenSuccess,
-                        get_account_id,
-                        refresh_access_token,
-                    )
-
-                    result = refresh_access_token(refresh_token)
-                    if isinstance(result, TokenSuccess):
-                        set_codex_access_token_env(result.access)
-                        set_codex_refresh_token_env(result.refresh)
-                        set_codex_token_expires_env(str(result.expires))
-                        account_id = get_account_id(result.access)
-                        if account_id:
-                            set_codex_account_id_env(account_id)
-                        access_token = result.access
-        except (TypeError, ValueError):
-            pass
-
-    return access_token
 
 
 def get_llm_config(*, use_openai_responses_api: bool = False) -> ClientConfig:
@@ -346,9 +296,16 @@ def get_llm_config(*, use_openai_responses_api: bool = False) -> ClientConfig:
                 api_key=get_custom_llm_api_key_env() or "null",
             )
         case LLMProvider.CODEX:
+            try:
+                creds = resolve_codex_runtime_credentials()
+            except CodexAuthError as exc:
+                raise HTTPException(
+                    status_code=exc.status_code,
+                    detail=str(exc),
+                ) from exc
             return ChatGPTClientConfig(
-                access_token=_get_codex_access_token(),
-                account_id=get_codex_account_id_env() or None,
+                access_token=creds["access_token"],
+                account_id=creds.get("account_id") or None,
             )
         case _:
             raise HTTPException(

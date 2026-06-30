@@ -284,35 +284,6 @@ def set_gpt_image_1_5_quality_env(value):
     os.environ["GPT_IMAGE_1_5_QUALITY"] = value
 
 
-# Codex OAuth
-def set_codex_access_token_env(value: str):
-    os.environ["CODEX_ACCESS_TOKEN"] = value
-
-
-def set_codex_refresh_token_env(value: str):
-    os.environ["CODEX_REFRESH_TOKEN"] = value
-
-
-def set_codex_token_expires_env(value: str):
-    os.environ["CODEX_TOKEN_EXPIRES"] = value
-
-
-def set_codex_account_id_env(value: str):
-    os.environ["CODEX_ACCOUNT_ID"] = value
-
-
-def set_codex_username_env(value: str):
-    os.environ["CODEX_USERNAME"] = value
-
-
-def set_codex_email_env(value: str):
-    os.environ["CODEX_EMAIL"] = value
-
-
-def set_codex_is_pro_env(value: str):
-    os.environ["CODEX_IS_PRO"] = value
-
-
 def set_codex_model_env(value: str):
     os.environ["CODEX_MODEL"] = value
 

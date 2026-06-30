@@ -1,3 +1,4 @@
+from utils import llm_utils
 from utils.llm_utils import extract_structured_content, serialize_structured_content
 from utils.schema_utils import (
     ensure_array_schemas_have_items,
@@ -45,3 +46,26 @@ def test_ensure_array_schemas_have_items_adds_missing_items_recursively():
     assert fixed["properties"]["slides"]["items"]["properties"]["tags"]["items"] == {
         "type": "string"
     }
+
+
+def test_generate_with_codex_auth_retry_refreshes_once_on_401(monkeypatch):
+    class Unauthorized(Exception):
+        status_code = 401
+
+    class Response:
+        def __init__(self, content: str):
+            self.content = content
+
+    class Client:
+        def generate(self, **_kwargs):
+            raise Unauthorized()
+
+    class RetryClient:
+        def generate(self, **_kwargs):
+            return Response("retried")
+
+    monkeypatch.setattr(llm_utils, "_codex_auth_retry_client", lambda: RetryClient())
+
+    response = llm_utils.generate_with_codex_auth_retry(Client(), model="gpt-5.2")
+
+    assert response.content == "retried"

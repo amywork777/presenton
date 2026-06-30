@@ -2,13 +2,14 @@
 OpenAI Codex OAuth endpoints.
 
 Flow:
-  1. POST /codex/auth/initiate  — start the flow, get back an auth URL + session_id
-  2. Browser opens the URL, user authenticates with OpenAI
-  3. OpenAI redirects to http://localhost:1455/auth/callback (captured by local server)
-  4. GET  /codex/auth/status/{session_id}  — poll until code captured; exchanges and stores tokens
-  5. POST /codex/auth/exchange  — manual fallback if browser callback didn't fire
-  6. POST /codex/auth/refresh   — refresh a stored token
+  1. POST /codex/auth/initiate — request a ChatGPT device code.
+  2. User opens the verification URL and enters the code.
+  3. GET /codex/auth/status/{session_id} polls OpenAI and stores tokens on success.
+  4. POST /codex/auth/refresh forces token refresh from the auth store.
 """
+from __future__ import annotations
+
+import time
 import uuid
 from typing import Optional
 
@@ -17,65 +18,50 @@ from pydantic import BaseModel
 
 from utils.oauth.openai_codex import (
     CodexAccountProfile,
-    OAuthCallbackServer,
+    CodexAuthError,
+    DevicePollPending,
+    TokenFailure,
     TokenSuccess,
-    create_authorization_flow,
+    clear_codex_auth,
     exchange_authorization_code,
-    get_account_profile,
-    parse_authorization_input,
-    refresh_access_token,
+    poll_device_authorization,
+    request_device_authorization,
+    resolve_codex_runtime_credentials,
+    save_codex_tokens,
 )
-from utils.get_env import (
-    get_codex_access_token_env,
-    get_codex_email_env,
-    get_codex_is_pro_env,
-    get_codex_refresh_token_env,
-    get_codex_token_expires_env,
-    get_codex_username_env,
-)
-from utils.set_env import (
-    set_codex_access_token_env,
-    set_codex_account_id_env,
-    set_codex_email_env,
-    set_codex_is_pro_env,
-    set_codex_refresh_token_env,
-    set_codex_token_expires_env,
-    set_codex_model_env,
-    set_codex_username_env,
-)
-from utils.user_config import save_codex_tokens_to_user_config
+
 
 CODEX_AUTH_ROUTER = APIRouter(prefix="/codex/auth", tags=["Codex OAuth"])
 
-# ---------------------------------------------------------------------------
-# In-memory session store  {session_id: {"verifier": str, "state": str, "server": OAuthCallbackServer}}
-# Sessions are short-lived; garbage-collected when consumed.
-# ---------------------------------------------------------------------------
 _sessions: dict[str, dict] = {}
 
 
-# ---------------------------------------------------------------------------
-# Request / Response models
-# ---------------------------------------------------------------------------
-
 class InitiateResponse(BaseModel):
     session_id: str
-    url: str
+    verification_url: str
+    user_code: str
+    expires_at: int
+    interval: int
     instructions: str
 
 
 class StatusResponse(BaseModel):
-    status: str  # "pending" | "success" | "failed"
+    status: str
     account_id: Optional[str] = None
     username: Optional[str] = None
     email: Optional[str] = None
     is_pro: Optional[bool] = None
+    verification_url: Optional[str] = None
+    user_code: Optional[str] = None
+    expires_at: Optional[int] = None
+    interval: Optional[int] = None
     detail: Optional[str] = None
 
 
 class ExchangeRequest(BaseModel):
     session_id: str
-    code: str  # raw code OR full redirect URL OR code#state shorthand
+    code: str
+    code_verifier: Optional[str] = None
 
 
 class ExchangeResponse(BaseModel):
@@ -93,113 +79,9 @@ class RefreshResponse(BaseModel):
     detail: str
 
 
-# ---------------------------------------------------------------------------
-# Helper
-# ---------------------------------------------------------------------------
-
-def _parse_optional_bool(value: Optional[str]) -> Optional[bool]:
-    if value is None:
-        return None
-    normalized = value.strip().lower()
-    if normalized in {"true", "1", "yes", "y"}:
-        return True
-    if normalized in {"false", "0", "no", "n"}:
-        return False
-    return None
-
-
-def _store_token(result: TokenSuccess) -> CodexAccountProfile:
-    """Persist token fields in env vars and userConfig.json. Returns parsed profile."""
-    set_codex_access_token_env(result.access)
-    set_codex_refresh_token_env(result.refresh)
-    set_codex_token_expires_env(str(result.expires))
-
-    profile = get_account_profile(result.access, result.id_token)
-    set_codex_account_id_env(profile.account_id or "")
-    set_codex_username_env(profile.username or "")
-    set_codex_email_env(profile.email or "")
-    set_codex_is_pro_env("" if profile.is_pro is None else str(profile.is_pro))
-
-    save_codex_tokens_to_user_config()
-    return profile
-
-
-# ---------------------------------------------------------------------------
-# Endpoints
-# ---------------------------------------------------------------------------
-
-@CODEX_AUTH_ROUTER.post("/initiate", response_model=InitiateResponse)
-async def initiate_codex_auth():
-    """
-    Start the OpenAI Codex OAuth flow.
-
-    Returns an authorization URL to open in the browser and a session_id to use
-    when polling /status or calling /exchange.  A local HTTP server is started
-    on port 1455 to receive the redirect automatically.
-    """
-    flow = create_authorization_flow()
-    server = OAuthCallbackServer(state=flow.state)
-    server_started = server.start()
-
-    session_id = str(uuid.uuid4())
-    _sessions[session_id] = {
-        "verifier": flow.verifier,
-        "state": flow.state,
-        "server": server,
-        "server_started": server_started,
-    }
-
-    instructions = (
-        "Open the URL in your browser and complete the OpenAI login. "
-        + (
-            "The callback will be captured automatically."
-            if server_started
-            else "Port 1455 could not be bound — paste the redirect URL or code into /exchange."
-        )
-    )
-
-    return InitiateResponse(
-        session_id=session_id,
-        url=flow.url,
-        instructions=instructions,
-    )
-
-
-@CODEX_AUTH_ROUTER.get("/status/{session_id}", response_model=StatusResponse)
-async def poll_codex_auth_status(session_id: str):
-    """
-    Poll for the result of an ongoing OAuth flow.
-
-    Returns {"status": "pending"} until the callback server captures the code.
-    On success the tokens are stored in environment variables and the session
-    is cleaned up.
-    """
-    session = _sessions.get(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found or already consumed")
-
-    server: OAuthCallbackServer = session["server"]
-
-    # Non-blocking peek — check whether the callback server already received a code
-    code = server.get_code_nowait() if session.get("server_started") else None
-
-    if code is None:
-        return StatusResponse(status="pending")
-
-    # We have a code — exchange it
-    verifier: str = session["verifier"]
-    result = exchange_authorization_code(code, verifier)
-
-    # Clean up session
-    server.close()
-    _sessions.pop(session_id, None)
-
-    if not isinstance(result, TokenSuccess):
-        return StatusResponse(status="failed", detail=result.reason)
-
-    profile = _store_token(result)
+def _profile_response(profile: CodexAccountProfile, status: str = "success") -> StatusResponse:
     return StatusResponse(
-        status="success",
+        status=status,
         account_id=profile.account_id,
         username=profile.username,
         email=profile.email,
@@ -207,47 +89,7 @@ async def poll_codex_auth_status(session_id: str):
     )
 
 
-@CODEX_AUTH_ROUTER.post("/exchange", response_model=ExchangeResponse)
-async def exchange_codex_code(body: ExchangeRequest):
-    """
-    Manual code exchange fallback.
-
-    Accepts the session_id from /initiate and either:
-    - a bare authorization code
-    - the full redirect URL  (http://localhost:1455/auth/callback?code=…&state=…)
-    - the code#state shorthand
-
-    Exchanges the code for tokens and stores them in environment variables.
-    """
-    session = _sessions.get(body.session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found or already consumed")
-
-    parsed = parse_authorization_input(body.code)
-    code = parsed.get("code")
-    incoming_state = parsed.get("state")
-
-    if not code:
-        raise HTTPException(status_code=400, detail="Could not extract authorization code from input")
-
-    if incoming_state and incoming_state != session["state"]:
-        raise HTTPException(status_code=400, detail="State mismatch — possible CSRF")
-
-    verifier: str = session["verifier"]
-    server: OAuthCallbackServer = session["server"]
-
-    result = exchange_authorization_code(code, verifier)
-
-    server.close()
-    _sessions.pop(body.session_id, None)
-
-    if not isinstance(result, TokenSuccess):
-        raise HTTPException(status_code=502, detail=f"Token exchange failed: {result.reason}")
-
-    profile = _store_token(result)
-    if not profile.account_id:
-        raise HTTPException(status_code=502, detail="Token exchanged but could not extract account ID")
-
+def _exchange_response(profile: CodexAccountProfile) -> ExchangeResponse:
     return ExchangeResponse(
         account_id=profile.account_id,
         username=profile.username,
@@ -256,81 +98,149 @@ async def exchange_codex_code(body: ExchangeRequest):
     )
 
 
-@CODEX_AUTH_ROUTER.post("/refresh", response_model=RefreshResponse)
-async def refresh_codex_token():
-    """
-    Refresh the stored Codex OAuth access token using the refresh token.
+def _session_pending_response(session: dict) -> StatusResponse:
+    return StatusResponse(
+        status="pending",
+        verification_url=session.get("verification_url"),
+        user_code=session.get("user_code"),
+        expires_at=session.get("expires_at"),
+        interval=session.get("interval"),
+    )
 
-    Updates environment variables with the new tokens.
+
+def _failure(status_code: int, result: TokenFailure) -> HTTPException:
+    return HTTPException(status_code=status_code, detail=result.reason)
+
+
+@CODEX_AUTH_ROUTER.post("/initiate", response_model=InitiateResponse)
+async def initiate_codex_auth():
+    auth = request_device_authorization()
+    if isinstance(auth, TokenFailure):
+        raise _failure(auth.status_code, auth)
+
+    session_id = str(uuid.uuid4())
+    _sessions[session_id] = {
+        "device_auth_id": auth.device_auth_id,
+        "user_code": auth.user_code,
+        "verification_url": auth.verification_url,
+        "expires_at": auth.expires_at,
+        "interval": auth.interval,
+        "next_poll_at": 0.0,
+    }
+
+    return InitiateResponse(
+        session_id=session_id,
+        verification_url=auth.verification_url,
+        user_code=auth.user_code,
+        expires_at=auth.expires_at,
+        interval=auth.interval,
+        instructions=(
+            "Open the verification URL, enter the code, and keep this page open "
+            "while Presenton completes sign-in."
+        ),
+    )
+
+
+@CODEX_AUTH_ROUTER.get("/status/{session_id}", response_model=StatusResponse)
+async def poll_codex_auth_status(session_id: str):
+    session = _sessions.get(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found or already consumed")
+
+    now_ms = int(time.time() * 1000)
+    if now_ms >= int(session.get("expires_at") or 0):
+        _sessions.pop(session_id, None)
+        return StatusResponse(status="failed", detail="ChatGPT sign-in code expired. Please start again.")
+
+    now = time.monotonic()
+    next_poll_at = float(session.get("next_poll_at") or 0.0)
+    if now < next_poll_at:
+        return _session_pending_response(session)
+
+    result = poll_device_authorization(
+        str(session["device_auth_id"]),
+        str(session["user_code"]),
+    )
+
+    if isinstance(result, DevicePollPending):
+        interval = max(int(session.get("interval") or result.interval or 5), result.interval)
+        session["interval"] = interval
+        session["next_poll_at"] = time.monotonic() + interval
+        return _session_pending_response(session)
+
+    _sessions.pop(session_id, None)
+    if isinstance(result, TokenFailure):
+        return StatusResponse(status="failed", detail=result.reason)
+
+    token_result = exchange_authorization_code(result.authorization_code, result.code_verifier)
+    if not isinstance(token_result, TokenSuccess):
+        return StatusResponse(status="failed", detail=token_result.reason)
+
+    profile = save_codex_tokens(token_result)
+    return _profile_response(profile, status="success")
+
+
+@CODEX_AUTH_ROUTER.post("/exchange", response_model=ExchangeResponse)
+async def exchange_codex_code(body: ExchangeRequest):
     """
-    refresh_token = get_codex_refresh_token_env()
-    if not refresh_token:
+    Advanced fallback for already-completed device auth.
+
+    The normal UI uses /status polling. This endpoint accepts an authorization
+    code plus code_verifier if a caller has captured them out-of-band.
+    """
+    session = _sessions.get(body.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found or already consumed")
+    if not body.code_verifier:
         raise HTTPException(
             status_code=400,
-            detail="No Codex refresh token stored. Please authenticate first via /initiate",
+            detail="Manual exchange requires both authorization code and code_verifier.",
         )
 
-    result = refresh_access_token(refresh_token)
+    result = exchange_authorization_code(body.code.strip(), body.code_verifier.strip())
+    _sessions.pop(body.session_id, None)
     if not isinstance(result, TokenSuccess):
-        raise HTTPException(status_code=502, detail=f"Token refresh failed: {result.reason}")
+        raise _failure(result.status_code, result)
 
-    profile = _store_token(result)
+    profile = save_codex_tokens(result)
+    return _exchange_response(profile)
+
+
+@CODEX_AUTH_ROUTER.post("/refresh", response_model=RefreshResponse)
+async def refresh_codex_token():
+    try:
+        creds = resolve_codex_runtime_credentials(force_refresh=True)
+    except CodexAuthError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
     return RefreshResponse(
-        account_id=profile.account_id,
-        username=profile.username,
-        email=profile.email,
-        is_pro=profile.is_pro,
+        account_id=creds.get("account_id"),
+        username=creds.get("username"),
+        email=creds.get("email"),
+        is_pro=creds.get("is_pro") if isinstance(creds.get("is_pro"), bool) else None,
         detail="Token refreshed successfully",
     )
 
 
 @CODEX_AUTH_ROUTER.get("/status", response_model=StatusResponse)
 async def get_codex_auth_status():
-    """
-    Return whether a valid Codex OAuth token is currently stored.
-    """
-    import time
+    try:
+        creds = resolve_codex_runtime_credentials(refresh_if_expiring=True)
+    except CodexAuthError as exc:
+        if exc.relogin_required:
+            return StatusResponse(status="not_authenticated", detail=str(exc))
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
-    access_token = get_codex_access_token_env()
-    if not access_token:
-        return StatusResponse(status="not_authenticated", detail="No access token stored")
-
-    expires_str = get_codex_token_expires_env()
-    if expires_str:
-        try:
-            expires_ms = int(expires_str)
-            now_ms = int(time.time() * 1000)
-            if now_ms >= expires_ms:
-                return StatusResponse(status="expired", detail="Access token has expired — call /refresh")
-        except (ValueError, TypeError):
-            pass
-
-    profile = get_account_profile(access_token)
     return StatusResponse(
         status="authenticated",
-        account_id=profile.account_id,
-        username=profile.username or get_codex_username_env(),
-        email=profile.email or get_codex_email_env(),
-        is_pro=(
-            profile.is_pro
-            if profile.is_pro is not None
-            else _parse_optional_bool(get_codex_is_pro_env())
-        ),
+        account_id=creds.get("account_id"),
+        username=creds.get("username"),
+        email=creds.get("email"),
+        is_pro=creds.get("is_pro") if isinstance(creds.get("is_pro"), bool) else None,
     )
 
 
 @CODEX_AUTH_ROUTER.post("/logout")
 async def logout_codex():
-    """
-    Clear all stored Codex OAuth credentials from environment variables and userConfig.json.
-    """
-    set_codex_access_token_env("")
-    set_codex_refresh_token_env("")
-    set_codex_token_expires_env("")
-    set_codex_account_id_env("")
-    set_codex_username_env("")
-    set_codex_email_env("")
-    set_codex_is_pro_env("")
-    set_codex_model_env("")
-    save_codex_tokens_to_user_config()
+    clear_codex_auth()
     return {"detail": "Logged out successfully"}

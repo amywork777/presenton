@@ -273,7 +273,7 @@ Other optional variables exist in code (for example advanced Mem0 paths, LitePar
 - **CEREBRAS_BASE_URL**: Optional if **LLM** is **cerebras** (default: `https://api.cerebras.ai/v1`).
 - **ANTHROPIC_API_KEY**: Required if **LLM** is **anthropic**.
 - **ANTHROPIC_MODEL**: Required if **LLM** is **anthropic** (default: `claude-3-5-sonnet-20241022`).
-- **CODEX_MODEL**: Required if **LLM** is **codex** (Codex OAuth flow; compose maps host port **1455** for the callback).
+- **CODEX_MODEL**: Required if **LLM** is **codex**. ChatGPT sign-in uses a browser device-code flow and does not require a callback port.
 - **CUSTOM_LLM_URL**: OpenAI-compatible base URL if **LLM** is **custom**.
 - **CUSTOM_LLM_API_KEY**: API key if **LLM** is **custom**.
 - **CUSTOM_MODEL**: Model id if **LLM** is **custom**.

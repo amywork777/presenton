@@ -320,13 +320,6 @@ export function syncStoreAfterCodexSignOut(): void {
       ...prev,
       LLM: "codex",
       CODEX_MODEL: "",
-      CODEX_ACCESS_TOKEN: "",
-      CODEX_REFRESH_TOKEN: "",
-      CODEX_TOKEN_EXPIRES: "",
-      CODEX_ACCOUNT_ID: "",
-      CODEX_USERNAME: "",
-      CODEX_EMAIL: "",
-      CODEX_IS_PRO: false,
     })
   );
 }

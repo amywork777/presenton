@@ -7,8 +7,6 @@ services:
     ports:
       # Set PRESENTON_HTTP_HOST_PORT to change the host port.
       - "${PRESENTON_HTTP_HOST_PORT:-5001}:80"
-      # Required for Codex OAuth callback (OpenAI redirects browser directly to localhost:1455)
-      - "1455:1455"
     volumes:
       - ./app_data:/app_data
       - ./servers/fastapi/templates:/app/servers/fastapi/templates:ro
@@ -127,8 +125,6 @@ services:
     ports:
       # Set PRESENTON_HTTP_HOST_PORT to change the host port.
       - "${PRESENTON_HTTP_HOST_PORT:-5001}:80"
-      # Required for Codex OAuth callback (OpenAI redirects browser directly to localhost:1455)
-      - "1455:1455"
     volumes:
       - ./app_data:/app_data
     environment:
@@ -236,8 +232,6 @@ services:
       dockerfile: Dockerfile.dev
     ports:
       - "${PRESENTON_HTTP_HOST_PORT:-5001}:80"
-      # Required for Codex OAuth callback (OpenAI redirects browser directly to localhost:1455)
-      - "1455:1455"
     volumes:
       - .:/app
       - presenton_root_node_modules:/app/node_modules
@@ -357,8 +351,6 @@ services:
               capabilities: [gpu]
     ports:
       - "${PRESENTON_HTTP_HOST_PORT:-5001}:80"
-      # Required for Codex OAuth callback (OpenAI redirects browser directly to localhost:1455)
-      - "1455:1455"
     volumes:
       - .:/app
       - presenton_root_node_modules:/app/node_modules

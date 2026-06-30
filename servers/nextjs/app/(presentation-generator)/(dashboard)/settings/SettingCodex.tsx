@@ -6,8 +6,6 @@ import {
     Loader2,
     RefreshCw,
     Trash2,
-    Crown,
-    User,
     UserCheck,
 } from "lucide-react";
 import {
@@ -45,6 +43,10 @@ interface StatusResponse {
     username?: string;
     email?: string;
     is_pro?: boolean;
+    verification_url?: string;
+    user_code?: string;
+    expires_at?: number;
+    interval?: number;
     detail?: string;
 }
 
@@ -56,10 +58,9 @@ export default function CodexConfig({
     const [accountId, setAccountId] = useState<string | null>(null);
     const [username, setUsername] = useState<string | null>(null);
     const [email, setEmail] = useState<string | null>(null);
-    const [isPro, setIsPro] = useState<boolean | null>(null);
-    const [sessionId, setSessionId] = useState<string | null>(null);
-    const [manualCode, setManualCode] = useState("");
-    const [isExchanging, setIsExchanging] = useState(false);
+    const [verificationUrl, setVerificationUrl] = useState<string | null>(null);
+    const [userCode, setUserCode] = useState<string | null>(null);
+    const [expiresAt, setExpiresAt] = useState<number | null>(null);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [openModelSelect, setOpenModelSelect] = useState(false);
@@ -88,7 +89,12 @@ export default function CodexConfig({
         setAccountId(data.account_id ?? null);
         setUsername(data.username ?? null);
         setEmail(data.email ?? null);
-        setIsPro(typeof data.is_pro === "boolean" ? data.is_pro : null);
+    };
+
+    const applyDeviceSession = (data: Partial<StatusResponse>) => {
+        setVerificationUrl(data.verification_url ?? null);
+        setUserCode(data.user_code ?? null);
+        setExpiresAt(typeof data.expires_at === "number" ? data.expires_at : null);
     };
 
     const checkCurrentAuthStatus = async () => {
@@ -121,11 +127,11 @@ export default function CodexConfig({
             });
             if (!res.ok) throw new Error("Failed to initiate auth");
             const data = await res.json();
-            const { session_id, url } = data;
+            const { session_id, verification_url } = data;
 
-            setSessionId(session_id);
+            applyDeviceSession(data);
             setAuthStatus("polling");
-            window.open(url, "_blank", "noopener,noreferrer");
+            window.open(verification_url, "_blank", "noopener,noreferrer");
 
             pollIntervalRef.current = setInterval(async () => {
                 try {
@@ -139,7 +145,7 @@ export default function CodexConfig({
                         stopPolling();
                         setAuthStatus("authenticated");
                         applyProfile(pollData);
-                        setSessionId(null);
+                        applyDeviceSession({});
                         if (!isSupportedCodexModel(codexModel)) {
                             onInputChange(DEFAULT_CODEX_MODEL, "codex_model");
                         }
@@ -151,65 +157,32 @@ export default function CodexConfig({
                         stopPolling();
                         setAuthStatus("unauthenticated");
                         applyProfile({});
+                        applyDeviceSession({});
                         notify.error(
                             "Sign-in failed",
-                            "Authentication did not complete. Please try signing in again."
+                            pollData.detail || "Authentication did not complete. Please try signing in again."
                         );
+                    } else {
+                        applyDeviceSession(pollData);
                     }
                 } catch {
                     // keep polling on transient errors
                 }
-            }, 2000);
-        } catch (err) {
+            }, Math.max(3, Number(data.interval || 5)) * 1000);
+        } catch {
             notify.error(
                 "Sign-in failed",
                 "Could not start the sign-in flow. Please try again."
             );
             setAuthStatus("unauthenticated");
             applyProfile({});
-        }
-    };
-
-    const handleManualExchange = async () => {
-        if (!sessionId || !manualCode.trim()) return;
-        setIsExchanging(true);
-        try {
-            const res = await fetch(getApiUrl("/api/v1/ppt/codex/auth/exchange"), {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ session_id: sessionId, code: manualCode.trim() }),
-            });
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err.detail || "Exchange failed");
-            }
-            const data = await res.json();
-            stopPolling();
-            setAuthStatus("authenticated");
-            applyProfile(data);
-            setSessionId(null);
-            setManualCode("");
-            if (!isSupportedCodexModel(codexModel)) {
-                onInputChange(DEFAULT_CODEX_MODEL, "codex_model");
-            }
-            notify.success(
-                "Signed in to ChatGPT",
-                "Your ChatGPT account is connected and ready to use."
-            );
-        } catch (err: any) {
-            notify.error(
-                "Sign-in failed",
-                err.message || "The verification code could not be accepted. Please try again."
-            );
-        } finally {
-            setIsExchanging(false);
+            applyDeviceSession({});
         }
     };
 
     const handleCancelPolling = () => {
         stopPolling();
-        setSessionId(null);
-        setManualCode("");
+        applyDeviceSession({});
         setAuthStatus("unauthenticated");
     };
 
@@ -222,13 +195,6 @@ export default function CodexConfig({
             applyProfile({});
             onInputChange("codex", "LLM");
             onInputChange('', "codex_model");
-            onInputChange("", "CODEX_ACCESS_TOKEN");
-            onInputChange("", "CODEX_REFRESH_TOKEN");
-            onInputChange("", "CODEX_TOKEN_EXPIRES");
-            onInputChange("", "CODEX_ACCOUNT_ID");
-            onInputChange("", "CODEX_USERNAME");
-            onInputChange("", "CODEX_EMAIL");
-            onInputChange(false, "CODEX_IS_PRO");
             syncStoreAfterCodexSignOut();
             router.replace("/settings");
             notify.success(
@@ -253,6 +219,7 @@ export default function CodexConfig({
             });
             if (!res.ok) throw new Error("Refresh failed");
             const data = await res.json();
+            setAuthStatus("authenticated");
             applyProfile(data);
             notify.success(
                 "Session refreshed",
@@ -293,38 +260,35 @@ export default function CodexConfig({
                     </button>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-3 rounded-lg border border-[#EDEEEF] p-3">
                     <p className="text-xs text-gray-400">
-                        Paste redirect URL or code if not redirected automatically
+                        Enter this code on the ChatGPT sign-in page
                     </p>
-                    <div className="flex gap-2">
-                        <input
-                            type="text"
-                            placeholder="Paste URL or code…"
-                            className="flex-1 px-2 py-2 outline-none border border-gray-300 rounded-lg text-xs focus:border-gray-400 transition-colors"
-                            value={manualCode}
-                            onChange={(e) => setManualCode(e.target.value)}
-                        />
-                        <button
-                            onClick={handleManualExchange}
-                            disabled={isExchanging || !manualCode.trim()}
-                            className="px-3 py-2 bg-[#EDEEEF] hover:bg-[#E4E5E6] disabled:opacity-40 rounded-lg text-xs font-medium text-[#101323] transition-colors"
-                        >
-                            {isExchanging ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                                "Submit"
-                            )}
-                        </button>
+                    <div className="flex items-center justify-between gap-3">
+                        <div className="font-mono text-lg font-semibold tracking-wider text-[#101323]">
+                            {userCode || "------"}
+                        </div>
+                        {verificationUrl && (
+                            <button
+                                type="button"
+                                onClick={() => window.open(verificationUrl, "_blank", "noopener,noreferrer")}
+                                className="px-3 py-2 bg-[#EDEEEF] hover:bg-[#E4E5E6] rounded-lg text-xs font-medium text-[#101323] transition-colors"
+                            >
+                                Open ChatGPT
+                            </button>
+                        )}
                     </div>
+                    {expiresAt && (
+                        <p className="text-xs text-gray-400">
+                            Code expires in {Math.max(0, Math.ceil((expiresAt - Date.now()) / 60000))} min
+                        </p>
+                    )}
                 </div>
             </div>
         );
     }
 
     if (authStatus === "authenticated") {
-        const planLabel = isPro === true ? "Pro" : isPro === false ? "Free" : "Unknown";
-
         return (
             <div className="space-y-4">
                 <div className="flex items-center gap-3 p-3  border border-[#EDEEEF] rounded-lg">

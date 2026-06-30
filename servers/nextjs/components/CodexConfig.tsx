@@ -4,7 +4,6 @@ import {
   Loader2,
   RefreshCw,
   Trash2,
-  UserCheck,
   ArrowRight,
 } from "lucide-react";
 import { notify } from "@/components/ui/sonner";
@@ -31,6 +30,10 @@ interface StatusResponse {
   username?: string;
   email?: string;
   is_pro?: boolean;
+  verification_url?: string;
+  user_code?: string;
+  expires_at?: number;
+  interval?: number;
   detail?: string;
 }
 
@@ -43,9 +46,9 @@ export default function CodexConfig({
   const [accountId, setAccountId] = useState<string | null>(null);
   const [username, setUsername] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [manualCode, setManualCode] = useState("");
-  const [isExchanging, setIsExchanging] = useState(false);
+  const [verificationUrl, setVerificationUrl] = useState<string | null>(null);
+  const [userCode, setUserCode] = useState<string | null>(null);
+  const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -78,6 +81,12 @@ export default function CodexConfig({
     setAccountId(data.account_id ?? null);
     setUsername(data.username ?? null);
     setEmail(data.email ?? null);
+  };
+
+  const applyDeviceSession = (data: Partial<StatusResponse>) => {
+    setVerificationUrl(data.verification_url ?? null);
+    setUserCode(data.user_code ?? null);
+    setExpiresAt(typeof data.expires_at === "number" ? data.expires_at : null);
   };
 
   const checkCurrentAuthStatus = async () => {
@@ -117,11 +126,11 @@ export default function CodexConfig({
       });
       if (!res.ok) throw new Error("Failed to initiate auth");
       const data = await res.json();
-      const { session_id, url } = data;
+      const { session_id, verification_url } = data;
 
-      setSessionId(session_id);
+      applyDeviceSession(data);
       setAuthStatus("polling");
-      window.open(url, "_blank", "noopener,noreferrer");
+      window.open(verification_url, "_blank", "noopener,noreferrer");
 
       pollIntervalRef.current = setInterval(async () => {
         try {
@@ -136,7 +145,7 @@ export default function CodexConfig({
             stopPolling();
             setAuthStatus("authenticated");
             applyProfile(pollData);
-            setSessionId(null);
+            applyDeviceSession({});
             if (!isSupportedCodexModel(codexModel)) {
               onInputChange(DEFAULT_CODEX_MODEL, "codex_model");
             }
@@ -149,16 +158,19 @@ export default function CodexConfig({
             stopPolling();
             setAuthStatus("unauthenticated");
             applyProfile({});
+            applyDeviceSession({});
             notify.error(
               "Sign-in failed",
-              "Authentication did not complete. Please try signing in again."
+              pollData.detail || "Authentication did not complete. Please try signing in again."
             );
+          } else {
+            applyDeviceSession(pollData);
           }
         } catch {
           // keep polling on transient errors
         }
-      }, 2000);
-    } catch (err) {
+      }, Math.max(3, Number(data.interval || 5)) * 1000);
+    } catch {
       trackEvent(MixpanelEvent.Codex_SignIn_Failed, { method: "initiate" });
       notify.error(
         "Sign-in failed",
@@ -166,52 +178,14 @@ export default function CodexConfig({
       );
       setAuthStatus("unauthenticated");
       applyProfile({});
-    }
-  };
-
-  const handleManualExchange = async () => {
-    if (!sessionId || !manualCode.trim()) return;
-    setIsExchanging(true);
-    try {
-      const res = await fetch(getApiUrl("/api/v1/ppt/codex/auth/exchange"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: sessionId, code: manualCode.trim() }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || "Exchange failed");
-      }
-      const data = await res.json();
-      trackEvent(MixpanelEvent.Codex_SignIn_Completed, { method: "manual_exchange" });
-      stopPolling();
-      setAuthStatus("authenticated");
-      applyProfile(data);
-      setSessionId(null);
-      setManualCode("");
-      if (!isSupportedCodexModel(codexModel)) {
-        onInputChange(DEFAULT_CODEX_MODEL, "codex_model");
-      }
-      notify.success(
-        "Signed in to ChatGPT",
-        "Your ChatGPT account is connected and ready to use."
-      );
-    } catch (err: any) {
-      trackEvent(MixpanelEvent.Codex_SignIn_Failed, { method: "manual_exchange" });
-      notify.error(
-        "Sign-in failed",
-        err.message || "The verification code could not be accepted. Please try again."
-      );
-    } finally {
-      setIsExchanging(false);
+      applyDeviceSession({});
     }
   };
 
   const handleCancelPolling = () => {
     trackEvent(MixpanelEvent.Codex_SignIn_Cancelled);
     stopPolling();
-    setSessionId(null);
-    setManualCode("");
+    applyDeviceSession({});
     setAuthStatus("unauthenticated");
   };
 
@@ -225,13 +199,6 @@ export default function CodexConfig({
       setUsername(null);
       setEmail(null);
       onInputChange("", "codex_model");
-      onInputChange("", "CODEX_ACCESS_TOKEN");
-      onInputChange("", "CODEX_REFRESH_TOKEN");
-      onInputChange("", "CODEX_TOKEN_EXPIRES");
-      onInputChange("", "CODEX_ACCOUNT_ID");
-      onInputChange("", "CODEX_USERNAME");
-      onInputChange("", "CODEX_EMAIL");
-      onInputChange(false, "CODEX_IS_PRO");
       syncStoreAfterCodexSignOut();
       router.replace(pathname.startsWith("/settings") ? "/settings" : "/");
       notify.success(
@@ -256,6 +223,7 @@ export default function CodexConfig({
       });
       if (!res.ok) throw new Error("Refresh failed");
       const data = await res.json();
+      setAuthStatus("authenticated");
       applyProfile(data);
       notify.success(
         "Session refreshed",
@@ -268,6 +236,7 @@ export default function CodexConfig({
       );
       setAuthStatus("unauthenticated");
       applyProfile({});
+      applyDeviceSession({});
     } finally {
       setIsRefreshing(false);
     }
@@ -313,31 +282,29 @@ export default function CodexConfig({
           </button>
         </div>
 
-        <div className="space-y-2 rounded-[8px] border border-[#EDEEEF] p-3">
+        <div className="space-y-3 rounded-[8px] border border-[#EDEEEF] p-3">
           <p className="text-[#191919] text-xs font-normal">
-            Paste redirect URL or code if you were not redirected automatically
+            Enter this code on the ChatGPT sign-in page
           </p>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Paste URL or code…"
-              className="flex-1 min-w-0 px-3 py-2.5 outline-none border border-[#EDEEEF] rounded-[8px]  text-sm text-[#191919] placeholder:text-[#666666] focus:border-[#555555] transition-colors"
-              value={manualCode}
-              onChange={(e) => setManualCode(e.target.value)}
-            />
-            <button
-              type="button"
-              onClick={handleManualExchange}
-              disabled={isExchanging || !manualCode.trim()}
-              className="shrink-0 px-4 py-2.5 bg-[#EDEEEF] hover:bg-[#E4E5E6] disabled:opacity-40 disabled:hover:bg-[#EDEEEF] rounded-[8px] text-sm font-medium text-[#191919] transition-colors flex items-center justify-center min-w-[88px]"
-            >
-              {isExchanging ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                "Submit"
-              )}
-            </button>
+          <div className="flex items-center justify-between gap-3">
+            <div className="font-mono text-xl font-semibold tracking-wider text-[#191919]">
+              {userCode || "------"}
+            </div>
+            {verificationUrl && (
+              <button
+                type="button"
+                onClick={() => window.open(verificationUrl, "_blank", "noopener,noreferrer")}
+                className="shrink-0 px-4 py-2.5 bg-[#EDEEEF] hover:bg-[#E4E5E6] rounded-[8px] text-sm font-medium text-[#191919] transition-colors"
+              >
+                Open ChatGPT
+              </button>
+            )}
           </div>
+          {expiresAt && (
+            <p className="text-[#B3B3B3] text-xs font-normal">
+              Code expires in {Math.max(0, Math.ceil((expiresAt - Date.now()) / 60000))} min
+            </p>
+          )}
         </div>
       </div>
     );

@@ -6,6 +6,7 @@ from typing import Any, Optional
 
 import dirtyjson
 from fastapi import HTTPException
+from llmai import get_client
 from llmai.shared import (
     LLMTool,
     Message,
@@ -19,6 +20,45 @@ from utils.schema_utils import get_schema_validation_errors
 
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _exception_status_code(exc: Exception) -> Optional[int]:
+    status_code = getattr(exc, "status_code", None)
+    if isinstance(status_code, int):
+        return status_code
+    response = getattr(exc, "response", None)
+    response_status = getattr(response, "status_code", None)
+    if isinstance(response_status, int):
+        return response_status
+    return None
+
+
+def _codex_auth_retry_client() -> Any | None:
+    try:
+        from enums.llm_provider import LLMProvider
+        from utils.llm_config import get_llm_config
+        from utils.llm_provider import get_llm_provider
+        from utils.oauth.openai_codex import resolve_codex_runtime_credentials
+
+        if get_llm_provider() != LLMProvider.CODEX:
+            return None
+        resolve_codex_runtime_credentials(force_refresh=True)
+        return get_client(config=get_llm_config())
+    except Exception as exc:
+        LOGGER.debug("Codex forced auth refresh failed: %s", exc)
+        return None
+
+
+def generate_with_codex_auth_retry(client: Any, **kwargs: Any) -> Any:
+    try:
+        return client.generate(**kwargs)
+    except Exception as exc:
+        if _exception_status_code(exc) != 401:
+            raise
+        retry_client = _codex_auth_retry_client()
+        if retry_client is None:
+            raise
+        return retry_client.generate(**kwargs)
 
 
 def get_generate_kwargs(
@@ -104,7 +144,8 @@ async def generate_structured_with_schema_retries(
         content: Optional[dict] = None
         for attempt in range(3):
             response = await asyncio.to_thread(
-                client.generate,
+                generate_with_codex_auth_retry,
+                client,
                 **get_generate_kwargs(
                     model=model,
                     messages=working_messages,
@@ -228,9 +269,22 @@ async def stream_generate_events(client: Any, **kwargs) -> AsyncGenerator[Any, N
     sentinel = object()
 
     def worker():
+        emitted = False
         try:
-            for event in client.generate(**kwargs):
-                loop.call_soon_threadsafe(queue.put_nowait, event)
+            try:
+                events = client.generate(**kwargs)
+                for event in events:
+                    emitted = True
+                    loop.call_soon_threadsafe(queue.put_nowait, event)
+            except Exception as exc:
+                if emitted or _exception_status_code(exc) != 401:
+                    raise
+                retry_client = _codex_auth_retry_client()
+                if retry_client is None:
+                    raise
+                for event in retry_client.generate(**kwargs):
+                    emitted = True
+                    loop.call_soon_threadsafe(queue.put_nowait, event)
         except Exception as exc:
             loop.call_soon_threadsafe(queue.put_nowait, exc)
         finally:
