@@ -12,6 +12,7 @@ from api.v2.templates.router import (
     GenerateTemplateV2BlocksRequest,
     InitTemplateV2Request,
     PatchTemplateV2SlideLayoutRequest,
+    UpdateTemplateV2MetadataRequest,
     create_template_v2_slide_layouts,
     create_template_v2,
     delete_template_v2,
@@ -20,6 +21,7 @@ from api.v2.templates.router import (
     init_template_v2,
     list_templates_v2,
     patch_template_v2_slide_layout,
+    update_template_v2_metadata,
 )
 from models.sql.template_v2 import TemplateV2
 from services.export_task_service import PptxToJsonDocument
@@ -724,6 +726,66 @@ def test_get_template_v2_returns_template(fake_async_session):
     )
 
     assert response == template
+
+
+def test_update_template_v2_metadata_updates_name_and_description(fake_async_session):
+    template_id = uuid.uuid4()
+    template = TemplateV2(name="Custom", description="Old", layouts=RAW_LAYOUTS)
+    fake_async_session._get_results[template_id] = template
+
+    response = asyncio.run(
+        update_template_v2_metadata(
+            template_id,
+            UpdateTemplateV2MetadataRequest(
+                name="  Company Report  ",
+                description="  Quarterly review deck  ",
+            ),
+            sql_session=fake_async_session,
+        )
+    )
+
+    assert response == template
+    assert template.name == "Company Report"
+    assert template.description == "Quarterly review deck"
+    assert fake_async_session.added == [template]
+    assert fake_async_session.commit_count == 1
+
+
+def test_update_template_v2_metadata_rejects_blank_name(fake_async_session):
+    template_id = uuid.uuid4()
+    fake_async_session._get_results[template_id] = TemplateV2(
+        name="Custom",
+        layouts=RAW_LAYOUTS,
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            update_template_v2_metadata(
+                template_id,
+                UpdateTemplateV2MetadataRequest(name="  "),
+                sql_session=fake_async_session,
+            )
+        )
+
+    assert exc.value.status_code == 400
+    assert exc.value.detail == "Template name is required"
+    assert fake_async_session.commit_count == 0
+
+
+def test_update_template_v2_metadata_returns_404_for_missing_template(
+    fake_async_session,
+):
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            update_template_v2_metadata(
+                uuid.uuid4(),
+                UpdateTemplateV2MetadataRequest(name="Company Report"),
+                sql_session=fake_async_session,
+            )
+        )
+
+    assert exc.value.status_code == 404
+    assert exc.value.detail == "Template not found"
 
 
 def test_delete_template_v2_deletes_template(fake_async_session):

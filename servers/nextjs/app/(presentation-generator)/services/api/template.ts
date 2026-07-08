@@ -31,6 +31,11 @@ export interface TemplateV2ListItem {
     updated_at?: string;
 }
 
+export interface UpdateTemplateV2MetadataPayload {
+    name: string;
+    description?: string | null;
+}
+
 class TemplateService {
 
     static async getCustomTemplateSummaries() {
@@ -69,6 +74,20 @@ class TemplateService {
             return await ApiResponseHandler.handleResponse(response, "Failed to get Templates V2 details");
         } catch (error) {
             console.error("Failed to get Templates V2 details", error);
+            throw error;
+        }
+    }
+
+    static async updateTemplateV2Metadata(templateId: string, payload: UpdateTemplateV2MetadataPayload) {
+        try {
+            const response = await fetch(getApiUrl(`/api/v2/templates/${encodeURIComponent(templateId)}`), {
+                method: "PATCH",
+                headers: getHeader(),
+                body: JSON.stringify(payload),
+            });
+            return await ApiResponseHandler.handleResponse(response, "Failed to update Templates V2 metadata");
+        } catch (error) {
+            console.error("Failed to update Templates V2 metadata", error);
             throw error;
         }
     }
