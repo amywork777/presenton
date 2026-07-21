@@ -2,7 +2,6 @@ import { editorChartToRawChart } from "@/components/slide-editor/model/chart-mod
 import {
   asRecord,
   isRecord,
-  normalizeId,
   readArray,
   readNumber,
   readPoint,
@@ -45,6 +44,8 @@ export function insertedComponentToRaw(
   label: string | undefined,
   index: number,
 ): RawComponent {
+  void label;
+  void index;
   const box = sourceElementBox(component);
   const elements = readArray(component.elements)
     .filter(isRecord)
@@ -53,11 +54,6 @@ export function insertedComponentToRaw(
   void size;
   return {
     ...componentWithoutSize,
-    id: `${normalizeId(
-      readString(component.id) ?? label ?? "inserted-component",
-    )}_${index + 1}`,
-    description:
-      readString(component.description) ?? label ?? "Inserted component",
     position: { x: box.x, y: box.y },
     elements,
   };
@@ -68,11 +64,11 @@ export function insertedElementToComponent(
   label: string | undefined,
   index: number,
 ) {
+  void label;
+  void index;
   const box = sourceElementBox(element);
   const rawElement = rawElementFromInsertedElement(element);
   return {
-    id: `${normalizeId(label ?? readString(element.type) ?? "inserted")}_${index + 1}`,
-    description: label ?? "Inserted element",
     position: { x: box.x, y: box.y },
     elements: [
       isVectorType(readString(rawElement.type))

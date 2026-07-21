@@ -502,24 +502,23 @@ function renderContainer(
   key: string,
   mode: RenderMode
 ) {
-  const padding = paddingStyle(readRecord(element.padding));
   const fallbackSize = containerFallbackSize(element);
-  const childMode = element.child?.position ? "absolute" : "flow";
+  const box = readBox(element, fallbackSize);
+  const childBox = element.child ? containerChildBox(element, box, element.child) : null;
+  const child = element.child && childBox
+    ? childWithFrame(element.child, childBox)
+    : null;
 
   return (
     <div
       key={key}
       style={{
-        ...frameStyle(element, mode, fallbackSize),
+        ...frameStyleFromBox(box, mode),
         ...boxStyle(element),
-        ...padding,
-        alignItems: verticalAlign(readString(readRecord(element.alignment).vertical)),
-        display: "flex",
-        justifyContent: horizontalAlign(readString(readRecord(element.alignment).horizontal)),
         overflow: "hidden",
       }}
     >
-      {renderElement(element.child, `${key}-child`, childMode)}
+      {renderElement(child, `${key}-child`, "absolute")}
     </div>
   );
 }
@@ -528,23 +527,218 @@ function containerFallbackSize(element: TemplateV2Element) {
   const child = element.child;
   if (!child) return undefined;
 
-  const childFallback = Array.isArray(child.children)
-    ? childrenBounds(child.children)
-    : undefined;
+  const childFallback = childFallbackSize(child);
   const childBox = readBox(child, childFallback);
-  const padding = readRecord(element.padding);
+  const padding = readPaddingBox(element.padding);
   return {
     width:
       childBox.x +
       (childBox.width ?? 1) +
-      (readNumber(padding.left) ?? 0) +
-      (readNumber(padding.right) ?? 0),
+      padding.left +
+      padding.right,
     height:
       childBox.y +
       (childBox.height ?? 1) +
-      (readNumber(padding.top) ?? 0) +
-      (readNumber(padding.bottom) ?? 0),
+      padding.top +
+      padding.bottom,
   };
+}
+
+function containerChildBox(
+  parent: TemplateV2Element,
+  parentBox: Box,
+  child: TemplateV2Element
+): Box {
+  if (isManualPositioned(child)) {
+    return readBox(child, childFallbackSize(child));
+  }
+
+  const padding = readPaddingBox(parent.padding);
+  const content = {
+    x: padding.left,
+    y: padding.top,
+    width: Math.max(1, (parentBox.width ?? 1) - padding.left - padding.right),
+    height: Math.max(1, (parentBox.height ?? 1) - padding.top - padding.bottom),
+  };
+  const point = readPointBox(child.position);
+  const childType = readString(child.type);
+  const explicitSize = readOptionalBoxSize(child.size);
+  const inferredSize =
+    childType === "group" && explicitSize == null
+      ? { width: content.width, height: content.height }
+      : childFallbackSize(child, {
+          width: content.width,
+          height: content.height,
+        });
+  const width = explicitSize?.width ?? inferredSize.width;
+  const height = explicitSize?.height ?? inferredSize.height;
+
+  if (childType === "group") {
+    return {
+      x: content.x + point.x,
+      y: content.y + point.y,
+      width,
+      height,
+    };
+  }
+
+  const alignment = readRecord(parent.alignment);
+  const horizontal = readString(alignment.horizontal) ?? "left";
+  const vertical = readString(alignment.vertical) ?? "top";
+  return {
+    x:
+      horizontal === "center"
+        ? content.x + alignmentOffset("center", content.width, width)
+        : horizontal === "right"
+          ? content.x + alignmentOffset("right", content.width, width)
+          : content.x + point.x,
+    y:
+      vertical === "middle" || vertical === "center"
+        ? content.y + alignmentOffset("center", content.height, height)
+        : vertical === "bottom"
+          ? content.y + alignmentOffset("bottom", content.height, height)
+          : content.y + point.y,
+    width,
+    height,
+  };
+}
+
+function childFallbackSize(
+  child: TemplateV2Element,
+  fallback: { width: number; height: number } = { width: 1, height: 1 }
+): { width: number; height: number } {
+  const explicitSize = readOptionalBoxSize(child.size);
+  if (explicitSize) return explicitSize;
+
+  const type = readString(child.type);
+  if (type === "group") {
+    return Array.isArray(child.children) ? childrenBounds(child.children) : fallback;
+  }
+  if (type === "container") {
+    return containerFallbackSize(child) ?? fallback;
+  }
+  return fallback;
+}
+
+function childWithFrame(child: TemplateV2Element, box: Box): TemplateV2Element {
+  if (readString(child.type) === "vector") {
+    return vectorWithFrame(child, box);
+  }
+  return {
+    ...child,
+    position: {
+      ...readRecord(child.position),
+      x: box.x,
+      y: box.y,
+    },
+    size: {
+      ...readRecord(child.size),
+      width: box.width ?? 1,
+      height: box.height ?? 1,
+    },
+  };
+}
+
+function vectorWithFrame(child: TemplateV2Element, box: Box): TemplateV2Element {
+  const sourcePoints = polygonSourcePoints(child);
+  if (sourcePoints.length === 0) {
+    return {
+      ...child,
+      position: {
+        ...readRecord(child.position),
+        x: box.x,
+        y: box.y,
+      },
+      size: {
+        ...readRecord(child.size),
+        width: box.width ?? 1,
+        height: box.height ?? 1,
+      },
+    };
+  }
+
+  const renderPoints =
+    vectorShape(child) === "ellipse" ? sourcePoints : polygonPoints(child);
+  const currentBox = polygonBox(child, renderPoints);
+  const currentWidth = currentBox.width ?? 1;
+  const currentHeight = currentBox.height ?? 1;
+  const nextWidth = box.width ?? currentWidth;
+  const nextHeight = box.height ?? currentHeight;
+  const scaleX = currentWidth > 0 ? nextWidth / currentWidth : 1;
+  const scaleY = currentHeight > 0 ? nextHeight / currentHeight : 1;
+  const safeScaleX = Number.isFinite(scaleX) ? Math.abs(scaleX) : 1;
+  const safeScaleY = Number.isFinite(scaleY) ? Math.abs(scaleY) : 1;
+  const radiusScale = Math.min(safeScaleX, safeScaleY);
+  const rawCornerRadii = child.corner_radii ?? child.cornerRadii;
+  const cornerRadii = (Array.isArray(rawCornerRadii) ? rawCornerRadii : [])
+    .map(readNumber)
+    .filter((value): value is number => value != null)
+    .map((value) => Math.max(0, value * radiusScale));
+  const { position, size, border_radius, borderRadius, ...rest } = child;
+  void position;
+  void size;
+  void border_radius;
+  void borderRadius;
+  return {
+    ...rest,
+    type: "vector",
+    points: sourcePoints.map((point) => ({
+      x: box.x + (point.x - currentBox.x) * safeScaleX,
+      y: box.y + (point.y - currentBox.y) * safeScaleY,
+    })),
+    ...(cornerRadii.length > 0 ? { corner_radii: cornerRadii } : {}),
+  };
+}
+
+function readPaddingBox(value: unknown) {
+  const padding = readRecord(value);
+  const x = readNumber(padding.x ?? padding.horizontal);
+  const y = readNumber(padding.y ?? padding.vertical);
+  return {
+    top: readNumber(padding.top) ?? y ?? 0,
+    right: readNumber(padding.right) ?? x ?? 0,
+    bottom: readNumber(padding.bottom) ?? y ?? 0,
+    left: readNumber(padding.left) ?? x ?? 0,
+  };
+}
+
+function readPointBox(value: unknown) {
+  const point = readRecord(value);
+  return {
+    x: readNumber(point.x) ?? 0,
+    y: readNumber(point.y) ?? 0,
+  };
+}
+
+function readOptionalBoxSize(value: unknown) {
+  const size = readRecord(value);
+  const width = readNumber(size.width);
+  const height = readNumber(size.height);
+  return width != null && height != null
+    ? { width: Math.max(1, width), height: Math.max(1, height) }
+    : null;
+}
+
+function isManualPositioned(element: TemplateV2Element) {
+  return element.__presenton_manual_position === true;
+}
+
+function alignmentOffset(
+  alignment: string | null,
+  available: number,
+  used: number
+) {
+  const free = Math.max(0, available - used);
+  if (alignment === "center") return free / 2;
+  if (
+    alignment === "right" ||
+    alignment === "bottom" ||
+    alignment === "end" ||
+    alignment === "flex-end"
+  ) {
+    return free;
+  }
+  return 0;
 }
 
 function renderFlex(element: TemplateV2Element, key: string, mode: RenderMode) {
@@ -1094,15 +1288,6 @@ function fontStyle(font: TemplateV2Element["font"]): React.CSSProperties {
 function readLineHeight(font: TemplateV2Element["font"]) {
   const record = readRecord(font);
   return readNumber(record.line_height ?? record.line_height);
-}
-
-function paddingStyle(padding: Record<string, unknown>): React.CSSProperties {
-  return {
-    paddingBottom: px(readNumber(padding.bottom) ?? 0),
-    paddingLeft: px(readNumber(padding.left) ?? 0),
-    paddingRight: px(readNumber(padding.right) ?? 0),
-    paddingTop: px(readNumber(padding.top) ?? 0),
-  };
 }
 
 function borderRadiusPx(radius: Record<string, unknown>) {

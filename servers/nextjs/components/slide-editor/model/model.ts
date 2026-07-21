@@ -45,7 +45,6 @@ import {
   asRecord,
   clamp,
   isRecord,
-  normalizeId,
   readArray,
   readBoolean,
   readNumber,
@@ -82,7 +81,6 @@ export {
   isEditableTarget,
   isRecord,
   MAX_HISTORY_ENTRIES,
-  normalizeId,
   readArray,
   readBoolean,
   readNumber,
@@ -1122,12 +1120,7 @@ export function componentForClipboardSelection(
 }
 
 export function rootElementClipboardComponent(element: RawElement, box: Box): RawComponent {
-  const type = readString(element.type) ?? "element";
-  const label =
-    readString(element.name) || readString(element.id) || `Copied ${type}`;
   return {
-    id: `${normalizeId(label)}_component`,
-    description: label,
     position: { x: box.x, y: box.y },
     elements: [
       {

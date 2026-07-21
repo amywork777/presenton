@@ -81,12 +81,7 @@ function ungroupedComponentsFromComponent(
 ): RawRecord[] {
   const componentBoxValue = deps.componentBox(component);
   const componentRotation = readNumber(component.rotation) ?? 0;
-  const idBase = normalizeId(
-    readString(component.id) ??
-      readString(component.name) ??
-      readString(component.description) ??
-      `component_${componentIndex + 1}`,
-  );
+  void componentIndex;
   const elements = readArray(component.elements).filter(isRecord);
   const entries =
     elements.length === 1
@@ -99,8 +94,8 @@ function ungroupedComponentsFromComponent(
           absoluteElementEntry(element, componentBoxValue, deps),
         );
 
-  return entries.map((entry, index) =>
-    ungroupedComponent(entry, idBase, index, componentBoxValue, componentRotation),
+  return entries.map((entry) =>
+    ungroupedComponent(entry, componentBoxValue, componentRotation),
   );
 }
 
@@ -167,8 +162,6 @@ function hasUngroupableLayout(element: RawRecord): boolean {
 
 function ungroupedComponent(
   entry: UngroupEntry,
-  idBase: string,
-  index: number,
   parentBox: TemplateV2UngroupBox,
   parentRotation: number,
 ): RawRecord {
@@ -176,8 +169,6 @@ function ungroupedComponent(
   const position = rotatedChildComponentPosition(box, parentBox, parentRotation);
   const inheritedRotation = parentRotation + rotation;
   return {
-    id: `${idBase}_part_${index + 1}`,
-    description: "Ungrouped component element",
     position,
     ...(inheritedRotation !== 0 ? { rotation: inheritedRotation } : {}),
     elements: [ungroupedElement(element, sourceBox)],
@@ -291,14 +282,6 @@ function readString(value: unknown): string | null {
 
 function readNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function normalizeId(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "") || "component";
 }
 
 function cloneJson<T>(value: T): T {

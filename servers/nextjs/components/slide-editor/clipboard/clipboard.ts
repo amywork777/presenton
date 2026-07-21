@@ -114,15 +114,10 @@ function withUniquePastedComponentIdentity(
   siblings: unknown[],
 ) {
   const next = { ...component };
-  next.id = uniqueComponentId(
-    `${normalizeId(
-      readString(component.id) ??
-        readString(component.name) ??
-        readString(component.description) ??
-        "component",
-    )}_copy`,
-    siblings,
-  );
+  const id = readString(component.id);
+  if (id) {
+    next.id = uniqueComponentId(`${normalizeId(id)}_copy`, siblings);
+  }
   return next;
 }
 
