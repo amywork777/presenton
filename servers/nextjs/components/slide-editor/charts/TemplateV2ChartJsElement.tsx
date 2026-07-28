@@ -14,6 +14,7 @@ import {
   markdownToPlainChartText,
   normalizeChartTypeName,
 } from "@/components/slide-editor/charts/chart-data";
+import { registerChartJsDataLabels } from "@/components/slide-editor/charts/chart-js-datalabels";
 import type { DataLabelPosition } from "@/components/slide-editor/types";
 import {
   asRecord,
@@ -86,6 +87,8 @@ const CHART_TITLE_DISPLAY_MAX_LENGTH = 44;
 const CHART_AXIS_TITLE_DISPLAY_MAX_LENGTH = 36;
 const CHART_AXIS_TICK_DISPLAY_MAX_LENGTH = 22;
 const CHART_LEGEND_DISPLAY_MAX_LENGTH = 28;
+
+registerChartJsDataLabels();
 
 export function TemplateV2ChartJsElement({
   element,

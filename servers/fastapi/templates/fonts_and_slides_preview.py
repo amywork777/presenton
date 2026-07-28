@@ -140,8 +140,11 @@ class _PreviewLogger:
 
 PREVIEW_WIDTH = 1280
 PREVIEW_HEIGHT = 720
-TAILWIND_CDN_URL = "https://cdn.tailwindcss.com"
-DEFAULT_CHART_JS_URL = "https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"
+TAILWIND_BROWSER_ASSET_PATH = "/static/vendor/tailwindcss-browser.js"
+CHART_JS_ASSET_PATH = "/static/vendor/chart.umd.min.js"
+CHART_DATALABELS_ASSET_PATH = (
+    "/static/vendor/chartjs-plugin-datalabels.min.js"
+)
 MAX_TEMPLATE_PREVIEW_SLIDES = 50
 MAX_FONT_CHECK_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024
 FONT_CHECK_UPLOAD_SIZE_ERROR = "File size must be less than 100MB."
@@ -583,12 +586,21 @@ def _get_template_preview_session_dir(session_id: uuid.UUID) -> str:
     return session_dir
 
 
+def _runtime_asset_url(path: str) -> str:
+    public_url = absolute_fastapi_asset_url(path)
+    if public_url.startswith(("http://", "https://")):
+        return public_url
+    internal_base = (
+        os.getenv("FAST_API_INTERNAL_URL") or "http://127.0.0.1:8000"
+    ).rstrip("/")
+    return f"{internal_base}{public_url}"
+
+
 def _chart_js_url() -> str:
-    return (
-        os.getenv("NEXT_PUBLIC_CHART_JS_URL")
-        or os.getenv("CHART_JS_URL")
-        or DEFAULT_CHART_JS_URL
+    configured_url = os.getenv("NEXT_PUBLIC_CHART_JS_URL") or os.getenv(
+        "CHART_JS_URL"
     )
+    return configured_url or _runtime_asset_url(CHART_JS_ASSET_PATH)
 
 
 def _build_slide_preview_html(
@@ -598,14 +610,25 @@ def _build_slide_preview_html(
     width: int = PREVIEW_WIDTH,
     height: int = PREVIEW_HEIGHT,
 ) -> str:
-    fastapi_base = absolute_fastapi_asset_url("/").rstrip("/") + "/"
+    fastapi_base = _runtime_asset_url("/").rstrip("/") + "/"
+    tailwind_browser_url = _runtime_asset_url(TAILWIND_BROWSER_ASSET_PATH)
+    chart_data_labels_url = _runtime_asset_url(CHART_DATALABELS_ASSET_PATH)
     return f"""<!doctype html>
 <html>
 <head>
   <meta charset="utf-8" />
   <base href="{fastapi_base}" />
-  <script src="{html.escape(TAILWIND_CDN_URL, quote=True)}"></script>
+  <script src="{html.escape(tailwind_browser_url, quote=True)}"></script>
   <script src="{html.escape(_chart_js_url(), quote=True)}"></script>
+  <script src="{html.escape(chart_data_labels_url, quote=True)}"></script>
+  <script>
+    if (window.Chart && window.ChartDataLabels) {{
+      window.Chart.register(window.ChartDataLabels);
+      if (window.Chart.defaults.plugins.datalabels) {{
+        window.Chart.defaults.plugins.datalabels.display = false;
+      }}
+    }}
+  </script>
   {font_links}
   <style>
     html,

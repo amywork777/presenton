@@ -87,3 +87,31 @@ test("renders legacy text-decoration underline fields", async () => {
     /<span style="[^"]*text-decoration:underline;[^"]*">Legacy<\/span>/,
   );
 });
+
+test("uses locally hosted Chart.js and data-label plugin scripts", async () => {
+  const { templateV2UiToHtml } = await importRenderer();
+
+  const html = templateV2UiToHtml({
+    elements: [
+      {
+        type: "chart",
+        chart_type: "bar",
+        position: { x: 0, y: 0 },
+        size: { width: 640, height: 360 },
+        data: {
+          categories: ["Local"],
+          series: [{ name: "Value", values: [1] }],
+        },
+      },
+    ],
+  });
+
+  assert.ok(html);
+  assert.match(html, /<script src="\/vendor\/chart\.umd\.min\.js"><\/script>/);
+  assert.match(
+    html,
+    /<script src="\/vendor\/chartjs-plugin-datalabels\.min\.js"><\/script>/,
+  );
+  assert.match(html, /Chart\.register\(window\.ChartDataLabels\)/);
+  assert.doesNotMatch(html, /cdn\.jsdelivr\.net/);
+});

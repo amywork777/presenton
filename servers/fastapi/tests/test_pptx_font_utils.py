@@ -716,6 +716,8 @@ def test_preview_dimensions_preserve_converter_aspect_ratio():
 
 
 def test_build_slide_preview_html_adds_fixed_viewport_css(monkeypatch):
+    monkeypatch.delenv("NEXT_PUBLIC_CHART_JS_URL", raising=False)
+    monkeypatch.delenv("CHART_JS_URL", raising=False)
     monkeypatch.setattr(
         fonts_and_slides_preview,
         "absolute_fastapi_asset_url",
@@ -731,11 +733,21 @@ def test_build_slide_preview_html_adds_fixed_viewport_css(monkeypatch):
     )
 
     assert '<base href="http://backend.test/" />' in html
-    assert '<script src="https://cdn.tailwindcss.com"></script>' in html
     assert (
-        '<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>'
+        '<script src="http://backend.test/static/vendor/tailwindcss-browser.js"></script>'
         in html
     )
+    assert (
+        '<script src="http://backend.test/static/vendor/chart.umd.min.js"></script>'
+        in html
+    )
+    assert (
+        '<script src="http://backend.test/static/vendor/chartjs-plugin-datalabels.min.js"></script>'
+        in html
+    )
+    assert "window.Chart.register(window.ChartDataLabels)" in html
+    assert "cdn.tailwindcss.com" not in html
+    assert "cdn.jsdelivr.net" not in html
     assert "width: 1024px;" in html
     assert "height: 768px;" in html
     assert ".slide-content" in html
@@ -951,6 +963,10 @@ async def test_create_slide_previews_from_html_uses_converter_dimensions_and_fon
     rendered_path.write_bytes(b"png")
     render_calls = []
 
+    monkeypatch.delenv("NEXT_PUBLIC_FAST_API", raising=False)
+    monkeypatch.delenv("FAST_API_INTERNAL_URL", raising=False)
+    monkeypatch.delenv("NEXT_PUBLIC_CHART_JS_URL", raising=False)
+    monkeypatch.delenv("CHART_JS_URL", raising=False)
     monkeypatch.setattr(
         fonts_and_slides_preview,
         "get_font_details",
@@ -1002,9 +1018,16 @@ async def test_create_slide_previews_from_html_uses_converter_dimensions_and_fon
     assert height == 768
     assert len(htmls) == 1
     html = htmls[0]
-    assert '<script src="https://cdn.tailwindcss.com"></script>' in html
     assert (
-        '<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>'
+        '<script src="http://127.0.0.1:8000/static/vendor/tailwindcss-browser.js"></script>'
+        in html
+    )
+    assert (
+        '<script src="http://127.0.0.1:8000/static/vendor/chart.umd.min.js"></script>'
+        in html
+    )
+    assert (
+        '<script src="http://127.0.0.1:8000/static/vendor/chartjs-plugin-datalabels.min.js"></script>'
         in html
     )
     assert ".deck-font { color: black; }" in html

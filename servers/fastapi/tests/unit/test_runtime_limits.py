@@ -66,6 +66,9 @@ def test_export_node_env_recreates_puppeteer_directories(monkeypatch, tmp_path):
     monkeypatch.setenv("APP_DATA_DIRECTORY", str(app_data))
     monkeypatch.setenv("TEMP_DIRECTORY", str(temp_dir))
     monkeypatch.delenv("NEXT_PUBLIC_FAST_API", raising=False)
+    monkeypatch.delenv("FAST_API_INTERNAL_URL", raising=False)
+    monkeypatch.delenv("NEXT_PUBLIC_CHART_JS_URL", raising=False)
+    monkeypatch.delenv("CHART_JS_URL", raising=False)
     monkeypatch.setenv("PUPPETEER_TMP_DIR", str(puppeteer_temp))
     monkeypatch.setenv("PUPPETEER_CACHE_DIR", str(puppeteer_cache))
     monkeypatch.delenv("PRESENTON_ELECTRON", raising=False)
@@ -76,6 +79,10 @@ def test_export_node_env_recreates_puppeteer_directories(monkeypatch, tmp_path):
     assert env["PUPPETEER_TMP_DIR"] == str(puppeteer_temp)
     assert env["PUPPETEER_CACHE_DIR"] == str(puppeteer_cache)
     assert env["ASSETS_BASE_URL"] == "/app_data"
+    assert (
+        env["CHART_JS_URL"]
+        == "http://127.0.0.1:8000/static/vendor/chart.umd.min.js"
+    )
     assert puppeteer_temp.is_dir()
     assert puppeteer_cache.is_dir()
 

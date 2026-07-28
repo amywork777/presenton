@@ -1,83 +1,118 @@
 # Multi-Arch Docker Release
 
-This document describes how to publish `presenton` as a multi-architecture image to GitHub Container Registry (`ghcr.io`).
+This document describes how to publish `presenton` as a multi-architecture
+image to GitHub Container Registry (`ghcr.io`).
 
 The flow is:
 
-1. Build the image separately on each native platform.
-2. Push an architecture-specific tag from each machine.
-3. Create a multi-arch manifest that points to both images.
-4. Promote that manifest to `latest`.
+1. Build the image with an explicit platform on each native machine.
+2. Verify the local image architecture before pushing it.
+3. Push an architecture-specific tag from each machine.
+4. Create a multi-arch manifest that points to both images.
+5. Promote that manifest to `latest`.
 
-## Expected Local Image
+Do not infer an image's architecture from the host machine or tag name.
+`docker-compose.yml` defaults to `linux/amd64`, including on Apple Silicon, and
+`docker tag` does not change an image's architecture.
 
-After a successful local production build, the image should exist as:
+## Release Configuration
 
-```text
-presenton-3-production:latest
+Set the same release version on both build machines. This example uses
+`v0.9.3-beta`:
+
+```bash
+export IMAGE=ghcr.io/presenton/presenton
+export VERSION=v0.9.3-beta
 ```
 
-## Release Tags
-
-This example uses version `v0.9.0-beta`:
+The release creates these tags:
 
 ```text
-ghcr.io/presenton/presenton:v0.9.0-beta-arm64
-ghcr.io/presenton/presenton:v0.9.0-beta-amd64
-ghcr.io/presenton/presenton:v0.9.0-beta
+ghcr.io/presenton/presenton:v0.9.3-beta-arm64
+ghcr.io/presenton/presenton:v0.9.3-beta-amd64
+ghcr.io/presenton/presenton:v0.9.3-beta
 ghcr.io/presenton/presenton:latest
 ```
 
-## 1. Push the ARM64 Image From macOS
-
-Run this on the Mac machine that built the ARM64 image:
+Log in before pushing:
 
 ```bash
-docker tag presenton-3-production:latest \
-  ghcr.io/presenton/presenton:v0.9.0-beta-arm64
-
-docker push ghcr.io/presenton/presenton:v0.9.0-beta-arm64
+docker login ghcr.io
 ```
 
-## 2. Push the AMD64 Image From Linux
+## 1. Build and Push the ARM64 Image From macOS
 
-Run this on the Linux machine that built the AMD64 image:
+Run this from the repository root on an Apple Silicon Mac:
 
 ```bash
-docker tag presenton-3-production:latest \
-  ghcr.io/presenton/presenton:v0.9.0-beta-amd64
+test "$(uname -m)" = "arm64"
 
-docker push ghcr.io/presenton/presenton:v0.9.0-beta-amd64
+docker buildx build \
+  --platform linux/arm64 \
+  --load \
+  --tag "${IMAGE}:${VERSION}-arm64" \
+  .
+
+test "$(docker image inspect "${IMAGE}:${VERSION}-arm64" \
+  --format '{{.Os}}/{{.Architecture}}')" = "linux/arm64"
+
+docker push "${IMAGE}:${VERSION}-arm64"
+docker buildx imagetools inspect "${IMAGE}:${VERSION}-arm64"
 ```
+
+The final inspection must report `Platform: linux/arm64`. Stop the release if
+it reports `linux/amd64`.
+
+## 2. Build and Push the AMD64 Image From Linux
+
+Run this from the same commit on a native AMD64 Linux machine:
+
+```bash
+test "$(uname -m)" = "x86_64"
+
+docker buildx build \
+  --platform linux/amd64 \
+  --load \
+  --tag "${IMAGE}:${VERSION}-amd64" \
+  .
+
+test "$(docker image inspect "${IMAGE}:${VERSION}-amd64" \
+  --format '{{.Os}}/{{.Architecture}}')" = "linux/amd64"
+
+docker push "${IMAGE}:${VERSION}-amd64"
+docker buildx imagetools inspect "${IMAGE}:${VERSION}-amd64"
+```
+
+The final inspection must report `Platform: linux/amd64`.
 
 ## 3. Create the Multi-Arch Manifest
 
-After both architecture-specific images are pushed, run this on either machine:
+After both architecture-specific images are pushed, run this on either
+machine:
 
 ```bash
 docker buildx imagetools create \
-  -t ghcr.io/presenton/presenton:v0.9.0-beta \
-  ghcr.io/presenton/presenton:v0.9.0-beta-amd64 \
-  ghcr.io/presenton/presenton:v0.9.0-beta-arm64
+  --tag "${IMAGE}:${VERSION}" \
+  "${IMAGE}:${VERSION}-amd64" \
+  "${IMAGE}:${VERSION}-arm64"
 ```
 
 ## 4. Promote the Release to `latest`
 
 ```bash
 docker buildx imagetools create \
-  -t ghcr.io/presenton/presenton:latest \
-  ghcr.io/presenton/presenton:v0.9.0-beta
+  --tag "${IMAGE}:latest" \
+  "${IMAGE}:${VERSION}"
 ```
 
 ## 5. Verify the Published Manifests
 
 ```bash
-docker buildx imagetools inspect ghcr.io/presenton/presenton:v0.9.0-beta
-
-docker buildx imagetools inspect ghcr.io/presenton/presenton:latest
+docker buildx imagetools inspect "${IMAGE}:${VERSION}"
+docker buildx imagetools inspect "${IMAGE}:latest"
 ```
 
-Both manifests should include:
+Both manifests must include:
 
 ```text
 linux/amd64
@@ -88,7 +123,7 @@ linux/arm64
 
 After the release completes, these tags should exist:
 
-- `v0.9.0-beta-arm64`: native ARM64 image
-- `v0.9.0-beta-amd64`: native AMD64 image
-- `v0.9.0-beta`: multi-arch manifest
+- `${VERSION}-arm64`: native ARM64 image
+- `${VERSION}-amd64`: native AMD64 image
+- `${VERSION}`: multi-arch manifest
 - `latest`: multi-arch manifest pointing at the same release

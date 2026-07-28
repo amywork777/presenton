@@ -7,6 +7,7 @@ import {
   BoundedTextBuffer,
   memorySnapshotMb,
 } from "@/lib/runtime-limits";
+import { LOCAL_CHART_JS_URL } from "@/lib/vendor-assets";
 
 /** Repo `presentation-export/` at app root (`/app/presentation-export` in Docker). */
 export function getExportPackageRoot(): string {
@@ -184,6 +185,10 @@ async function runBundledPresentationExportLocked(params: {
 
   const nextjsUrl =
     process.env.NEXT_PUBLIC_URL?.trim() || "http://127.0.0.1";
+  const chartJsUrl =
+    process.env.CHART_JS_URL?.trim() ||
+    process.env.NEXT_PUBLIC_CHART_JS_URL?.trim() ||
+    `${nextjsUrl.replace(/\/$/, "")}${LOCAL_CHART_JS_URL}`;
   const q = new URLSearchParams({ id: presentationId, format });
   const sessionToken = extractSessionTokenFromCookieHeader(cookieHeader);
   if (sessionToken) {
@@ -230,6 +235,7 @@ async function runBundledPresentationExportLocked(params: {
         env: {
           ...process.env,
           BUILT_PYTHON_MODULE_PATH: converter,
+          CHART_JS_URL: chartJsUrl,
         },
       });
       const stderr = new BoundedTextBuffer();

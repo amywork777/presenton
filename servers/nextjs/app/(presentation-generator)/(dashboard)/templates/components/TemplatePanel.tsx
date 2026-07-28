@@ -13,6 +13,7 @@ import {
   TemplateListLoadingState,
   TemplateListEmptyState,
 } from "../../../components/TemplateListUi";
+import { ensureTailwindBrowserRuntime } from "@/utils/tailwind-browser-runtime";
 
 const LayoutPreview = () => {
   const [tab, setTab] = useState<TemplateTab>("default");
@@ -31,13 +32,7 @@ const LayoutPreview = () => {
     }
 
     trackEvent(MixpanelEvent.Templates_Page_Viewed);
-    const existingScript = document.querySelector('script[src*="tailwindcss.com"]');
-    if (!existingScript) {
-      const script = document.createElement("script");
-      script.src = "https://cdn.tailwindcss.com";
-      script.async = true;
-      document.head.appendChild(script);
-    }
+    ensureTailwindBrowserRuntime();
   }, []);
 
   const handleOpenTemplate = useCallback(

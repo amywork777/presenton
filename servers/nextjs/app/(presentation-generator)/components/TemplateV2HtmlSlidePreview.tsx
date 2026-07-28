@@ -3,6 +3,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Chart from "chart.js/auto";
 import type { Chart as ChartInstance, ChartConfiguration, Plugin } from "chart.js";
+import { registerChartJsDataLabels } from "@/components/slide-editor/charts/chart-js-datalabels";
 import {
   hasTemplateV2RenderableUi,
   TEMPLATE_V2_HTML_HEIGHT,
@@ -43,6 +44,7 @@ let didRegisterPresentonDataLabelPlugin = false;
 
 function registerPresentonDataLabelPlugin(): void {
   if (didRegisterPresentonDataLabelPlugin) return;
+  registerChartJsDataLabels();
   Chart.register(presentonDataLabelPlugin);
   didRegisterPresentonDataLabelPlugin = true;
 }

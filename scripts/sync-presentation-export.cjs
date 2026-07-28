@@ -31,6 +31,10 @@ const packageJsonFile = path.join(repoRoot, "package.json");
 const cacheDir = path.join(repoRoot, ".cache", "presentation-export");
 const exportRepoBase =
   "https://github.com/presenton/presenton-export/releases/download";
+const chartJsCdnFallback =
+  "https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js";
+const localChartJsFallback =
+  "http://127.0.0.1:8000/static/vendor/chart.umd.min.js";
 
 const cliArgs = new Set(process.argv.slice(2));
 const forceDownload = cliArgs.has("--force");
@@ -259,6 +263,26 @@ function ensureCommonJsEntrypoint() {
   }
 }
 
+function ensureLocalChartJsFallback() {
+  if (!fs.existsSync(targetIndexJs)) {
+    return { ok: false, reason: `Missing runtime bundle: ${targetIndexJs}` };
+  }
+
+  try {
+    const source = fs.readFileSync(targetIndexJs, "utf8");
+    const patched = source.split(chartJsCdnFallback).join(localChartJsFallback);
+    if (patched !== source) {
+      fs.writeFileSync(targetIndexJs, patched, "utf8");
+    }
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      reason: `Failed to localize Chart.js in ${targetIndexJs}: ${err.message}`,
+    };
+  }
+}
+
 function validateExistingRuntime(expectedVersion) {
   const installedVersion = readInstalledVersion();
   if (!installedVersion.ok) {
@@ -279,6 +303,11 @@ function validateExistingRuntime(expectedVersion) {
   }
 
   normalizeRuntimeLayout();
+
+  const localizedRuntime = ensureLocalChartJsFallback();
+  if (!localizedRuntime.ok) {
+    return { ok: false, reason: localizedRuntime.reason };
+  }
 
   const entrypoint = ensureCommonJsEntrypoint();
   if (!entrypoint.ok) {

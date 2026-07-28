@@ -1,6 +1,10 @@
 import { resolveBackendAssetUrl } from "@/utils/api";
 import { markdownToPlainChartText } from "@/components/slide-editor/charts/chart-data";
 import { normalizeRawTextMarkdownElement } from "@/components/slide-editor/text/template-v2-text";
+import {
+  LOCAL_CHART_DATALABELS_URL,
+  LOCAL_CHART_JS_URL,
+} from "@/lib/vendor-assets";
 
 type JsonRecord = Record<string, unknown>;
 type RenderMode = "absolute" | "flow";
@@ -91,9 +95,6 @@ const ELEMENT_TYPES = new Set([
   "list-view",
   "grid-view",
 ]);
-
-const DEFAULT_CHART_JS_URL =
-  "https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js";
 
 const DEFAULT_CHART_COLORS = [
   "#7F22FE",
@@ -1818,9 +1819,10 @@ function hasChartItem(item: JsonRecord): boolean {
 
 function renderChartScripts(): string {
   const chartJsUrl = readChartJsUrl();
-  return `<script src="${escapeAttribute(chartJsUrl)}"></script><script>${escapeScriptText(
-    chartRendererScript()
-  )}</script>`;
+  const chartDataLabelsUrl = readChartDataLabelsUrl();
+  return `<script src="${escapeAttribute(chartJsUrl)}"></script><script src="${escapeAttribute(
+    chartDataLabelsUrl
+  )}"></script><script>${escapeScriptText(chartRendererScript())}</script>`;
 }
 
 function readChartJsUrl(): string {
@@ -1830,7 +1832,18 @@ function readChartJsUrl(): string {
   return (
     runtime.process?.env?.NEXT_PUBLIC_CHART_JS_URL ||
     runtime.process?.env?.CHART_JS_URL ||
-    DEFAULT_CHART_JS_URL
+    LOCAL_CHART_JS_URL
+  );
+}
+
+function readChartDataLabelsUrl(): string {
+  const runtime = globalThis as typeof globalThis & {
+    process?: { env?: Record<string, string | undefined> };
+  };
+  return (
+    runtime.process?.env?.NEXT_PUBLIC_CHART_DATALABELS_URL ||
+    runtime.process?.env?.CHART_DATALABELS_URL ||
+    LOCAL_CHART_DATALABELS_URL
   );
 }
 
@@ -1866,7 +1879,7 @@ function drawArcLabel(args){var element=args.element;var centerX=readNumber(elem
 function isPointType(type){return type==="line"||type==="scatter"||type==="bubble"||type==="radar"}
 function isArcType(type){return type==="pie"||type==="doughnut"||type==="polarArea"}
 var dataLabelPlugin={id:"presentonDataLabels",afterDatasetsDraw:function(chart,args,options){if(!options||!options.enabled)return;var ctx=chart.ctx;var fontSize=options.fontSize||11;var outsideColor=options.color||"#475467";var position=options.position==="base"||options.position==="mid"||options.position==="outside"||options.position==="top"?options.position:"top";ctx.save();ctx.font="600 "+fontSize+"px "+(options.fontFamily||"Inter, Arial, sans-serif");ctx.textAlign="center";ctx.textBaseline="middle";var occupied=[];chart.data.datasets.forEach(function(dataset,datasetIndex){var meta=chart.getDatasetMeta(datasetIndex);if(meta.hidden)return;var metaType=String(meta.type||"");meta.data.forEach(function(element,index){var raw=Array.isArray(dataset.data)?dataset.data[index]:0;var value=chartValue(raw);var label=formatValue(value);if(!label)return;if(metaType==="bar"){drawBarLabel({color:datasetBackgroundColor(dataset,index),ctx:ctx,element:element,fontSize:fontSize,horizontal:!!options.horizontal,label:label,outsideColor:outsideColor,position:position,value:value});return}if(isPointType(metaType)){drawPointLabel({chartArea:chart.chartArea,ctx:ctx,datasetIndex:datasetIndex,element:element,fontSize:fontSize,index:index,label:label,lineLike:metaType==="line"||metaType==="radar",metaElements:meta.data,occupied:occupied,outsideColor:outsideColor,position:position});return}if(isArcType(metaType)){drawArcLabel({color:datasetBackgroundColor(dataset,index),ctx:ctx,element:element,fontSize:fontSize,label:label,outsideColor:outsideColor,position:position});return}var fallbackPosition=typeof element.tooltipPosition==="function"?element.tooltipPosition(true):null;if(!fallbackPosition)return;ctx.fillStyle=outsideColor;ctx.fillText(label,fallbackPosition.x||0,fallbackPosition.y||0)})});ctx.restore()}};
-function render(){if(!window.Chart){finish("error","Chart.js failed to load");return}try{var Chart=window.Chart;Chart.register(dataLabelPlugin);document.querySelectorAll("canvas[data-presenton-chart]").forEach(function(canvas){var configText=canvas.getAttribute("data-chart-config");if(!configText)return;var config=JSON.parse(configText);config.options=config.options||{};config.options.animation=false;config.options.responsive=false;config.options.maintainAspectRatio=false;hydrateScales(config.options.scales);hydrateBarBorderRadii(config);var existing=typeof Chart.getChart==="function"?Chart.getChart(canvas):null;if(existing)existing.destroy();var chart=new Chart(canvas,config);if(typeof chart.update==="function")chart.update("none")});requestAnimationFrame(function(){finish("ready")})}catch(error){finish("error",error&&error.message?error.message:String(error))}}
+function render(){if(!window.Chart){finish("error","Chart.js failed to load");return}if(!window.ChartDataLabels){finish("error","Chart.js data-label plugin failed to load");return}try{var Chart=window.Chart;Chart.register(window.ChartDataLabels);if(Chart.defaults&&Chart.defaults.plugins&&Chart.defaults.plugins.datalabels){Chart.defaults.plugins.datalabels.display=false}Chart.register(dataLabelPlugin);document.querySelectorAll("canvas[data-presenton-chart]").forEach(function(canvas){var configText=canvas.getAttribute("data-chart-config");if(!configText)return;var config=JSON.parse(configText);config.options=config.options||{};config.options.animation=false;config.options.responsive=false;config.options.maintainAspectRatio=false;hydrateScales(config.options.scales);hydrateBarBorderRadii(config);var existing=typeof Chart.getChart==="function"?Chart.getChart(canvas):null;if(existing)existing.destroy();var chart=new Chart(canvas,config);if(typeof chart.update==="function")chart.update("none")});requestAnimationFrame(function(){finish("ready")})}catch(error){finish("error",error&&error.message?error.message:String(error))}}
 if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",render,{once:true})}else{render()}
 })();
 `;

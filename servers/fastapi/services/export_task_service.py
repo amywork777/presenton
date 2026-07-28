@@ -30,6 +30,7 @@ LOGGER = logging.getLogger(__name__)
 
 EXPORT_DIRECTORY_MODE = 0o755
 EXPORT_FILE_MODE = 0o644
+LOCAL_CHART_JS_ASSET_PATH = "/static/vendor/chart.umd.min.js"
 
 
 def _localize_json_image_assets(
@@ -278,6 +279,16 @@ class ExportTaskService:
         # nginx remains the public origin; Electron supplies its dynamic origin.
         env["ASSETS_BASE_URL"] = "/app_data"
         env["BUILT_PYTHON_MODULE_PATH"] = self.converter_path
+        fastapi_runtime_base = (
+            env.get("NEXT_PUBLIC_FAST_API")
+            or env.get("FAST_API_INTERNAL_URL")
+            or "http://127.0.0.1:8000"
+        ).rstrip("/")
+        env["CHART_JS_URL"] = (
+            env.get("CHART_JS_URL")
+            or env.get("NEXT_PUBLIC_CHART_JS_URL")
+            or f"{fastapi_runtime_base}{LOCAL_CHART_JS_ASSET_PATH}"
+        )
 
         return env
 
