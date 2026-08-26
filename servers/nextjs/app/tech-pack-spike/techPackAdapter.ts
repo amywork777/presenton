@@ -213,13 +213,18 @@ function documentHeader(document: TechPackDocument, page: number, pageCount: num
   return elements;
 }
 
-function componentTable(document: TechPackDocument, startY: number): SlideElement[] {
+function componentTable(
+  document: TechPackDocument,
+  startY: number,
+  parts: TechPackPart[] = document.parts,
+  startIndex = 0,
+  rowHeight = 19,
+): SlideElement[] {
   const x = 32;
   const widths = [44, 190, 190, 250, 150, 336];
   const labels = ["#", "COMPONENT", "COLOR", "MATERIAL", "FINISH", "SUPPLIER / REFERENCE"];
   const headerHeight = 26;
-  const rowHeight = Math.max(18, Math.min(30, 260 / Math.max(1, document.parts.length)));
-  const totalHeight = headerHeight + rowHeight * document.parts.length;
+  const totalHeight = headerHeight + rowHeight * parts.length;
   const columnX = widths.reduce<number[]>((positions, width) => {
     positions.push(positions.at(-1)! + width);
     return positions;
@@ -237,10 +242,10 @@ function componentTable(document: TechPackDocument, startY: number): SlideElemen
   columnX.slice(1, -1).forEach((position) => {
     elements.push(line(position, startY, position, startY + totalHeight, rule));
   });
-  document.parts.forEach((part, index) => {
+  parts.forEach((part, index) => {
     const rowY = startY + headerHeight + index * rowHeight;
     if (index > 0) elements.push(line(x, rowY, x + 1160, rowY, rule));
-    elements.push(text(String(index + 1).padStart(2, "0"), x + 8, rowY + 7, widths[0] - 16, 10, 7, {
+    elements.push(text(String(startIndex + index + 1).padStart(2, "0"), x + 8, rowY + 6, widths[0] - 16, 10, 7, {
       bold: true,
       color: muted,
     }));
@@ -290,7 +295,11 @@ function layout(id: string, description: string, elements: SlideElement[]): Temp
   return { id, description, background: paper, elements } as TemplateV2Layout;
 }
 
-function mainSpecificationPage(document: TechPackDocument, templateId: TechPackTemplateId, pageCount: number): TechPackEditorPage {
+const MAIN_TABLE_ROW_LIMIT = 12;
+const CONTINUATION_TABLE_ROW_LIMIT = 24;
+const SUPPORTING_IMAGES_PER_PAGE = 6;
+
+function mainSpecificationPage(document: TechPackDocument): TechPackEditorPage {
   const primary = document.views.find((view) => view.label === "Primary") ?? document.views[0];
   const top = document.views.find((view) => view.label === "Top");
   const heel = document.views.find((view) => view.label === "Heel");
@@ -301,7 +310,7 @@ function mainSpecificationPage(document: TechPackDocument, templateId: TechPackT
     sectionType: "region-map",
     sourceManaged: true,
     layout: layout("tech-pack-upper-specification", "Region Map-backed upper specification", [
-      ...documentHeader(document, 1, pageCount),
+      ...documentHeader(document, 1, 1),
       text("UPPER SPECIFICATION", 32, 84, 260, 20, 11, { bold: true, color: violet }),
       text("REGION MAP + MATERIAL CALLOUTS", 815, 86, 377, 16, 8, { bold: true, color: muted, align: "right" }),
       line(32, 108, 1192, 108, ink, 2),
@@ -314,9 +323,54 @@ function mainSpecificationPage(document: TechPackDocument, templateId: TechPackT
       text("DESIGN INTENT", 948, 296, 150, 14, 8, { bold: true, color: violet }),
       text(document.intent, 948, 320, 228, 88, 9, { name: "design_intent" }),
       text("COMPONENT SPECIFICATIONS", 32, 462, 470, 14, 8, { bold: true, color: violet }),
-      ...componentTable(document, 482),
+      ...componentTable(document, 482, document.parts.slice(0, MAIN_TABLE_ROW_LIMIT)),
     ]),
   };
+}
+
+function componentContinuationPages(document: TechPackDocument): TechPackEditorPage[] {
+  const remaining = document.parts.slice(MAIN_TABLE_ROW_LIMIT);
+  const chunks = Array.from(
+    { length: Math.ceil(remaining.length / CONTINUATION_TABLE_ROW_LIMIT) },
+    (_, index) => remaining.slice(
+      index * CONTINUATION_TABLE_ROW_LIMIT,
+      (index + 1) * CONTINUATION_TABLE_ROW_LIMIT,
+    ),
+  );
+
+  return chunks.map((parts, pageIndex) => {
+    const startIndex = MAIN_TABLE_ROW_LIMIT + pageIndex * CONTINUATION_TABLE_ROW_LIMIT;
+    const endIndex = startIndex + parts.length;
+    return {
+      id: `component-specifications-${pageIndex + 2}`,
+      title: `Component specifications · ${pageIndex + 2}`,
+      sectionType: "bom" as const,
+      sourceManaged: true,
+      layout: layout(
+        `tech-pack-component-specifications-${pageIndex + 2}`,
+        "Continued Region Map component specification table",
+        [
+          ...documentHeader(document, 1, 1),
+          text("COMPONENT SPECIFICATIONS · CONTINUED", 32, 84, 600, 20, 11, {
+            bold: true,
+            color: violet,
+          }),
+          text(
+            `${String(startIndex + 1).padStart(2, "0")}–${String(endIndex).padStart(2, "0")} OF ${document.parts.length}`,
+            852,
+            86,
+            340,
+            16,
+            8,
+            { bold: true, color: muted, align: "right" },
+          ),
+          line(32, 108, 1192, 108, ink, 2),
+          text("REGION MAP-LINKED COMPONENTS", 32, 128, 600, 14, 8, { bold: true, color: violet }),
+          ...componentTable(document, 154, parts, startIndex, 22),
+        ],
+      ),
+    };
+  });
 }
 
 function detailPage(document: TechPackDocument): TechPackEditorPage {
@@ -345,68 +399,88 @@ function detailPage(document: TechPackDocument): TechPackEditorPage {
   };
 }
 
-function sourceSectionPage(document: TechPackDocument): TechPackEditorPage {
+function sourceSectionPages(document: TechPackDocument): TechPackEditorPage[] {
   const sourceSection = document.sourceSection!;
-  const imageAssets = sourceSection.assets.filter((asset) => asset.imageUrl).slice(0, 4);
+  const allImageAssets = sourceSection.assets.filter((asset) => asset.imageUrl);
   const textAssets = sourceSection.assets.filter((asset) => asset.text);
+  const imageChunks = allImageAssets.length > 0
+    ? Array.from(
+        { length: Math.ceil(allImageAssets.length / SUPPORTING_IMAGES_PER_PAGE) },
+        (_, index) => allImageAssets.slice(
+          index * SUPPORTING_IMAGES_PER_PAGE,
+          (index + 1) * SUPPORTING_IMAGES_PER_PAGE,
+        ),
+      )
+    : [[]];
   const cardWidth = 360;
-  const cardHeight = 246;
-  const imageElements = imageAssets.flatMap((asset, index) => {
-    const column = index % 2;
-    const row = Math.floor(index / 2);
-    const x = 32 + column * (cardWidth + 16);
-    const y = 146 + row * (cardHeight + 16);
-    return [
-      rect(x, y, cardWidth, cardHeight, "#F7F7F9", rule),
-      image(asset.imageUrl!, x + 10, y + 10, cardWidth - 20, cardHeight - 48, `source_asset_${asset.id}`),
-      text(asset.title, x + 12, y + cardHeight - 29, cardWidth - 24, 14, 8, { bold: true }),
-    ];
+  const cardHeight = 158;
+
+  return imageChunks.map((imageAssets, pageIndex) => {
+    const imageElements = imageAssets.flatMap((asset, index) => {
+      const column = index % 2;
+      const row = Math.floor(index / 2);
+      const x = 32 + column * (cardWidth + 16);
+      const y = 146 + row * (cardHeight + 12);
+      return [
+        rect(x, y, cardWidth, cardHeight, "#F7F7F9", rule),
+        image(asset.imageUrl!, x + 10, y + 8, cardWidth - 20, cardHeight - 42, `source_asset_${asset.id}`),
+        text(asset.title, x + 12, y + cardHeight - 25, cardWidth - 24, 14, 8, { bold: true }),
+      ];
+    });
+    const listedAssets = pageIndex === 0
+      ? sourceSection.assets
+      : imageAssets;
+    const sourceList = listedAssets.map((asset) => {
+      const sourceIndex = sourceSection.assets.findIndex((candidate) => candidate.id === asset.id);
+      const detail = asset.kind === "image"
+        ? "Image"
+        : asset.kind === "color-swatch"
+          ? `${asset.colors?.length ?? 0} colors`
+          : asset.kind.replace("-", " ");
+      return `${String(sourceIndex + 1).padStart(2, "0")}  ${asset.title} · ${detail}`;
+    });
+    const suffix = pageIndex === 0 ? "" : ` · ${pageIndex + 1}`;
+    return {
+      id: `vizcom-section-sources${pageIndex === 0 ? "" : `-${pageIndex + 1}`}`,
+      title: `${sourceSection.title}${suffix}`,
+      sectionType: "views" as const,
+      sourceManaged: true,
+      layout: layout(
+        `tech-pack-vizcom-section-sources-${pageIndex + 1}`,
+        "Supporting content synced from a Vizcom Section",
+        [
+          ...documentHeader(document, 1, 1),
+          text(`VIZCOM TECH PACK SECTION${pageIndex === 0 ? "" : " · CONTINUED"}`, 32, 84, 520, 20, 11, { bold: true, color: violet }),
+          text(sourceSection.title.toUpperCase(), 676, 86, 516, 16, 8, { bold: true, color: muted, align: "right" }),
+          line(32, 108, 1192, 108, ink, 2),
+          text("SUPPORTING IMAGES", 32, 124, 736, 14, 8, { bold: true, color: violet }),
+          ...(imageElements.length > 0
+            ? imageElements
+            : pendingView(32, 146, 736, 508, "Drag images into this Vizcom Section")),
+          rect(784, 146, 408, 508, paper, rule),
+          text(pageIndex === 0 ? "LINKED WORKBENCH ITEMS" : "ITEMS ON THIS PAGE", 806, 168, 364, 16, 8, { bold: true, color: violet }),
+          text(sourceList.join("\n\n") || "No supporting items yet.", 806, 202, 364, 250, 9, { name: `source_section_assets_${pageIndex + 1}` }),
+          ...(pageIndex === 0 && textAssets.length > 0
+            ? [
+                line(806, 472, 1170, 472, rule),
+                text("NOTES", 806, 490, 364, 14, 8, { bold: true, color: violet }),
+                text(textAssets.map((asset) => asset.text).join("\n\n"), 806, 520, 364, 108, 9, { name: "source_section_notes" }),
+              ]
+            : []),
+          text(`PRIMARY REGION MAP · ${sourceSection.primaryDrawingId}`, 32, 684, 736, 14, 7, { bold: true, color: muted }),
+          text(`${sourceSection.assets.length} supporting workbench item${sourceSection.assets.length === 1 ? "" : "s"} · ${allImageAssets.length} image${allImageAssets.length === 1 ? "" : "s"} across ${imageChunks.length} page${imageChunks.length === 1 ? "" : "s"}`, 784, 684, 408, 14, 7, { bold: true, color: violet, align: "right" }),
+        ],
+      ),
+    };
   });
-  const sourceList = sourceSection.assets.map((asset, index) => {
-    const detail = asset.kind === "image"
-      ? "Image"
-      : asset.kind === "color-swatch"
-        ? `${asset.colors?.length ?? 0} colors`
-        : asset.kind.replace("-", " ");
-    return `${String(index + 1).padStart(2, "0")}  ${asset.title} · ${detail}`;
-  });
-  return {
-    id: "vizcom-section-sources",
-    title: sourceSection.title,
-    sectionType: "views",
-    sourceManaged: true,
-    layout: layout("tech-pack-vizcom-section-sources", "Supporting content synced from a Vizcom Section", [
-      ...documentHeader(document, 2, 2),
-      text("VIZCOM TECH PACK SECTION", 32, 84, 440, 20, 11, { bold: true, color: violet }),
-      text(sourceSection.title.toUpperCase(), 676, 86, 516, 16, 8, { bold: true, color: muted, align: "right" }),
-      line(32, 108, 1192, 108, ink, 2),
-      text("SUPPORTING IMAGES", 32, 124, 736, 14, 8, { bold: true, color: violet }),
-      ...(imageElements.length > 0
-        ? imageElements
-        : pendingView(32, 146, 736, 508, "Drag images into this Vizcom Section")),
-      rect(784, 146, 408, 508, paper, rule),
-      text("LINKED WORKBENCH ITEMS", 806, 168, 364, 16, 8, { bold: true, color: violet }),
-      text(sourceList.join("\n\n") || "No supporting items yet.", 806, 202, 364, 250, 9, { name: "source_section_assets" }),
-      ...(textAssets.length > 0
-        ? [
-            line(806, 472, 1170, 472, rule),
-            text("NOTES", 806, 490, 364, 14, 8, { bold: true, color: violet }),
-            text(textAssets.map((asset) => asset.text).join("\n\n"), 806, 520, 364, 108, 9, { name: "source_section_notes" }),
-          ]
-        : []),
-      text(`PRIMARY REGION MAP · ${sourceSection.primaryDrawingId}`, 32, 684, 736, 14, 7, { bold: true, color: muted }),
-      text(`${sourceSection.assets.length} supporting workbench item${sourceSection.assets.length === 1 ? "" : "s"} · live Section sync`, 784, 684, 408, 14, 7, { bold: true, color: violet, align: "right" }),
-    ]),
-  };
 }
 
 export function techPackToEditorPages(document: TechPackDocument, templateId: TechPackTemplateId = "upper-two-page"): TechPackEditorPage[] {
-  const pageCount = templateId === "upper-two-page" ? 2 : 1;
-  const pages = [mainSpecificationPage(document, templateId, pageCount)];
+  const pages = [mainSpecificationPage(document), ...componentContinuationPages(document)];
   if (templateId === "upper-two-page") {
-    pages.push(document.sourceSection ? sourceSectionPage(document) : detailPage(document));
+    pages.push(...(document.sourceSection ? sourceSectionPages(document) : [detailPage(document)]));
   }
-  return pages;
+  return numberTechPackPages(pages);
 }
 
 function sectionHeader(document: TechPackDocument, title: string): SlideElement[] {

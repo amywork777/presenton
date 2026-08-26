@@ -96,6 +96,8 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
   const numberedPages = useMemo(() => numberTechPackPages(pages), [pages]);
   const activeIndex = Math.max(0, pages.findIndex((page) => page.id === activePageId));
   const activePage = numberedPages[activeIndex];
+  const supportingImageCount = workingDocument.sourceSection?.assets.filter((asset) => asset.imageUrl).length ?? 0;
+  const supportingItemCount = workingDocument.sourceSection?.assets.length ?? 0;
 
   useEffect(() => {
     const container = canvasContainerRef.current;
@@ -308,6 +310,26 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
 
       <div className="flex min-h-0 flex-1">
         <aside className="block w-64 shrink-0 overflow-y-auto border-r border-white/10 bg-[#17181D] p-4">
+          <div className="mb-4 rounded-xl border border-[#6962FF]/50 bg-[#6962FF]/10 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[9px] font-bold uppercase tracking-[0.13em] text-[#9D98FF]">Tech Pack Section</span>
+              <span className="rounded-full bg-[#6962FF]/25 px-2 py-0.5 text-[9px] font-semibold text-[#B9B6FF]">Live</span>
+            </div>
+            <p className="mt-2 truncate text-xs font-semibold text-white/90">
+              {workingDocument.sourceSection?.title ?? workingDocument.title}
+            </p>
+            <div className="mt-2 grid grid-cols-2 gap-1.5 text-[9px] text-white/55">
+              <span className="rounded-md bg-black/20 px-2 py-1.5">1 Region Map</span>
+              <span className="rounded-md bg-black/20 px-2 py-1.5">{supportingImageCount} images</span>
+              <span className="col-span-2 rounded-md bg-black/20 px-2 py-1.5">{supportingItemCount} supporting items total</span>
+            </div>
+            <p className="mt-2 text-[9px] leading-4 text-white/40">
+              Add or remove source items in this Vizcom Section. Region edits and Section contents regenerate the linked pages.
+            </p>
+            <div className="mt-2 flex items-center gap-1 text-[9px] font-semibold text-white/55">
+              <span className="text-[#9D98FF]">Source</span><span>→</span><span>Regions</span><span>→</span><span>Pages</span><span>→</span><span>PDF</span>
+            </div>
+          </div>
           <div className="mb-3 flex items-center justify-between">
             <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/40">Pages</span>
             <span className="text-[11px] text-white/30">{pages.length}</span>
