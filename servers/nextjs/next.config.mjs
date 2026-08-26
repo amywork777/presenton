@@ -3,10 +3,11 @@ import { fileURLToPath } from "node:url";
 
 const nextjsRoot = path.dirname(fileURLToPath(import.meta.url));
 const isElectronBuild = process.env.PRESENTON_ELECTRON_BUILD === "true";
+const isVercelBuild = process.env.VERCEL === "1";
 
 const nextConfig = {
   reactStrictMode: false,
-  distDir: ".next-build",
+  distDir: isVercelBuild ? ".next" : ".next-build",
   output: "standalone",
   turbopack: {
     root: nextjsRoot,
