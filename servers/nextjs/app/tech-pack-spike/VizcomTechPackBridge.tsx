@@ -35,7 +35,6 @@ export function VizcomTechPackBridge({
   fallback: TechPackDocument;
 }) {
   const [document, setDocument] = useState(fallback);
-  const [revision, setRevision] = useState(0);
 
   useEffect(() => {
     const receive = (event: MessageEvent<unknown>) => {
@@ -48,7 +47,6 @@ export function VizcomTechPackBridge({
         return;
       }
       setDocument(message.document);
-      setRevision((value) => value + 1);
     };
 
     window.addEventListener("message", receive);
@@ -56,10 +54,5 @@ export function VizcomTechPackBridge({
     return () => window.removeEventListener("message", receive);
   }, []);
 
-  return (
-    <TechPackSpike
-      key={`${document.id}:${revision}`}
-      document={document}
-    />
-  );
+  return <TechPackSpike key={document.id} document={document} />;
 }
