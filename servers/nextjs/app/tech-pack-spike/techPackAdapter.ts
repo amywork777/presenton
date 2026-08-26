@@ -4,6 +4,27 @@ import type { TechPackDocument, TechPackPart } from "./techPackModel";
 
 export type TechPackTemplateId = "upper-one-page" | "upper-three-row" | "upper-two-page";
 
+export type TechPackSectionType =
+  | "cover"
+  | "region-map"
+  | "bom"
+  | "views"
+  | "construction-notes"
+  | "blank";
+
+export const TECH_PACK_SECTION_OPTIONS: Array<{
+  id: TechPackSectionType;
+  label: string;
+  description: string;
+}> = [
+  { id: "region-map", label: "Region Map", description: "Live part callouts from Vizcom Regions" },
+  { id: "bom", label: "Component / BOM", description: "Factory-ready component specification table" },
+  { id: "views", label: "Product views", description: "Primary and generated product views" },
+  { id: "construction-notes", label: "Construction notes", description: "Assembly instructions and review notes" },
+  { id: "cover", label: "Cover", description: "Product identity, intent, and primary design" },
+  { id: "blank", label: "Blank / custom", description: "An empty editable slide" },
+];
+
 export const TECH_PACK_TEMPLATES: Array<{
   id: TechPackTemplateId;
   label: string;
@@ -17,6 +38,8 @@ export const TECH_PACK_TEMPLATES: Array<{
 export type TechPackEditorPage = {
   id: string;
   title: string;
+  sectionType: TechPackSectionType;
+  sourceManaged: boolean;
   layout: TemplateV2Layout;
 };
 
@@ -275,6 +298,8 @@ function mainSpecificationPage(document: TechPackDocument, templateId: TechPackT
   return {
     id: "upper-specification",
     title: "Upper specification",
+    sectionType: "region-map",
+    sourceManaged: true,
     layout: layout("tech-pack-upper-specification", "Region Map-backed upper specification", [
       ...documentHeader(document, 1, pageCount),
       text("UPPER SPECIFICATION", 32, 84, 260, 20, 11, { bold: true, color: violet }),
@@ -300,6 +325,8 @@ function detailPage(document: TechPackDocument): TechPackEditorPage {
   return {
     id: "graphic-sole-details",
     title: "Graphic & sole details",
+    sectionType: "views",
+    sourceManaged: true,
     layout: layout("tech-pack-graphic-sole-details", "Optional graphic, cross-section, and sole detail page", [
       ...documentHeader(document, 2, 2),
       text("GRAPHIC DETAILS", 42, 86, 520, 20, 12, { bold: true, color: violet }),
@@ -323,6 +350,139 @@ export function techPackToEditorPages(document: TechPackDocument, templateId: Te
   const pages = [mainSpecificationPage(document, templateId, pageCount)];
   if (templateId === "upper-two-page") pages.push(detailPage(document));
   return pages;
+}
+
+function sectionHeader(document: TechPackDocument, title: string): SlideElement[] {
+  return [
+    ...documentHeader(document, 1, 1),
+    text(title.toUpperCase(), 32, 84, 620, 20, 11, { bold: true, color: violet }),
+    line(32, 108, 1192, 108, ink, 2),
+  ];
+}
+
+function regionMapSection(document: TechPackDocument): TemplateV2Layout {
+  const primary = document.views.find((view) => view.label === "Primary") ?? document.views[0];
+  const imageRect = { x: 224, y: 142, width: 776, height: 444 };
+  return layout("tech-pack-section-region-map", "Live Vizcom Region Map callouts", [
+    ...sectionHeader(document, "Region Map"),
+    image(primary.imageUrl ?? document.primarySource.imageUrl, imageRect.x, imageRect.y, imageRect.width, imageRect.height, "region_map_primary"),
+    ...automaticCallouts(document.parts, imageRect),
+    text("LIVE VIZCOM REGIONS · EDIT NAMES, COLORS, MATERIALS, AND MASKS ON THE WORKBENCH", 224, 606, 776, 16, 7, { bold: true, color: muted, align: "center" }),
+    rect(224, 644, 776, 78, violetSoft, "#C9C6FF"),
+    text("DESIGN INTENT", 244, 660, 140, 14, 8, { bold: true, color: violet }),
+    text(document.intent, 390, 658, 586, 44, 9, { name: "region_map_intent" }),
+  ]);
+}
+
+function bomSection(document: TechPackDocument): TemplateV2Layout {
+  return layout("tech-pack-section-bom", "Component and bill of materials table", [
+    ...sectionHeader(document, "Component / BOM"),
+    text("Structured from the selected design's live Region Map parts", 32, 126, 720, 15, 8, { color: muted }),
+    text(`${document.parts.length} COMPONENTS`, 952, 126, 240, 15, 8, { bold: true, color: violet, align: "right" }),
+    ...componentTable(document, 158),
+  ]);
+}
+
+function viewsSection(document: TechPackDocument): TemplateV2Layout {
+  const primary = document.views.find((view) => view.label === "Primary") ?? document.views[0];
+  const top = document.views.find((view) => view.label === "Top");
+  const heel = document.views.find((view) => view.label === "Heel");
+  return layout("tech-pack-section-views", "Selected and generated product views", [
+    ...sectionHeader(document, "Product views"),
+    text("PRIMARY / LATERAL", 32, 128, 692, 16, 8, { bold: true, color: muted }),
+    image(primary.imageUrl ?? document.primarySource.imageUrl, 32, 154, 700, 498, "views_primary"),
+    text("TOP", 764, 128, 428, 16, 8, { bold: true, color: muted }),
+    ...(top?.imageUrl ? [image(top.imageUrl, 764, 154, 428, 230, "views_top")] : pendingView(764, 154, 428, 230, "Top")),
+    text("HEEL / REAR", 764, 408, 428, 16, 8, { bold: true, color: muted }),
+    ...(heel?.imageUrl ? [image(heel.imageUrl, 764, 434, 428, 218, "views_heel")] : pendingView(764, 434, 428, 218, "Heel")),
+    text("Every generated view remains linked to the selected primary source asset.", 32, 682, 1160, 18, 8, { color: muted }),
+  ]);
+}
+
+function constructionNotesSection(document: TechPackDocument): TemplateV2Layout {
+  return layout("tech-pack-section-construction-notes", "Construction and review notes", [
+    ...sectionHeader(document, "Construction notes"),
+    rect(32, 134, 718, 590, paper, rule),
+    text("ASSEMBLY + REVIEW", 54, 158, 670, 18, 9, { bold: true, color: violet }),
+    text(document.constructionNotes.map((note, index) => `${String(index + 1).padStart(2, "0")}   ${note}`).join("\n\n"), 54, 198, 670, 470, 13, { name: "construction_notes_section" }),
+    rect(782, 134, 410, 590, "#F7F7F9", rule),
+    text("COMPONENT REFERENCE", 806, 158, 362, 18, 9, { bold: true, color: violet }),
+    ...document.parts.flatMap((part, index) => {
+      const y = 204 + index * Math.min(92, 448 / Math.max(1, document.parts.length));
+      return [
+        rect(806, y, 18, 18, part.colorHex, "#BFC1C8"),
+        text(`${String(index + 1).padStart(2, "0")}  ${part.name}`, 836, y, 320, 15, 9, { bold: true }),
+        text(`${part.material} · ${part.finish}`, 836, y + 22, 320, 28, 7, { color: muted }),
+      ];
+    }),
+  ]);
+}
+
+function coverSection(document: TechPackDocument): TemplateV2Layout {
+  const primary = document.views.find((view) => view.label === "Primary") ?? document.views[0];
+  return layout("tech-pack-section-cover", "Tech Pack cover", [
+    rect(0, 0, pageWidth, pageHeight, "#F7F7F9"),
+    rect(0, 0, 304, pageHeight, ink),
+    text("VIZCOM", 54, 54, 190, 24, 18, { bold: true, color: "#FFFFFF" }),
+    text("TECH PACK", 54, 88, 190, 16, 9, { bold: true, color: "#AAA7FF" }),
+    text(document.title, 54, 246, 210, 120, 28, { bold: true, color: "#FFFFFF", name: "cover_title" }),
+    text(`STYLE ${document.styleNumber}\nREVISION ${document.revision}\n${document.header.currentDate}`, 54, 392, 210, 90, 10, { color: "#C9CBD2" }),
+    image(primary.imageUrl ?? document.primarySource.imageUrl, 354, 92, 816, 500, "cover_primary"),
+    text("DESIGN INTENT", 354, 632, 150, 16, 9, { bold: true, color: violet }),
+    text(document.intent, 354, 660, 816, 58, 12, { name: "cover_intent" }),
+  ]);
+}
+
+function blankSection(): TemplateV2Layout {
+  return layout("tech-pack-section-blank", "Blank editable Tech Pack section", [
+    rect(0, 0, pageWidth, pageHeight, paper),
+    text("CUSTOM SECTION", 48, 44, 300, 20, 10, { bold: true, color: violet }),
+    line(48, 78, 1176, 78, rule),
+  ]);
+}
+
+export function createTechPackSectionPage(
+  document: TechPackDocument,
+  sectionType: TechPackSectionType,
+  instanceId: string,
+): TechPackEditorPage {
+  const option = TECH_PACK_SECTION_OPTIONS.find((candidate) => candidate.id === sectionType)!;
+  const layouts: Record<TechPackSectionType, () => TemplateV2Layout> = {
+    cover: () => coverSection(document),
+    "region-map": () => regionMapSection(document),
+    bom: () => bomSection(document),
+    views: () => viewsSection(document),
+    "construction-notes": () => constructionNotesSection(document),
+    blank: blankSection,
+  };
+  return {
+    id: `custom-${sectionType}-${instanceId}`,
+    title: option.label,
+    sectionType,
+    sourceManaged: false,
+    layout: layouts[sectionType](),
+  };
+}
+
+export function numberTechPackPages(pages: TechPackEditorPage[]): TechPackEditorPage[] {
+  return pages.map((page, index) => {
+    const elements = page.layout.elements as SlideElement[];
+    return {
+      ...page,
+      layout: {
+        ...page.layout,
+        elements: elements.map((element) => {
+          if (element.type !== "text" || !element.runs?.length) return element;
+          const current = element.runs.map((run) => "text" in run ? run.text : "").join("");
+          if (!/^PAGE \d+ \/ \d+$/.test(current)) return element;
+          return {
+            ...element,
+            runs: [{ ...element.runs[0], text: `PAGE ${index + 1} / ${pages.length}` }],
+          };
+        }),
+      },
+    };
+  });
 }
 
 export const TECH_PACK_PAGE_SIZE = { width: pageWidth, height: pageHeight } as const;

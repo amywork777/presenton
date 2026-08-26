@@ -1,7 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, FilePlus2, MessageSquarePlus } from "lucide-react";
+import {
+  Check,
+  Copy,
+  Download,
+  FilePlus2,
+  GripVertical,
+  MessageSquarePlus,
+  Pencil,
+  Trash2,
+  X,
+} from "lucide-react";
 import { TemplateV2KonvaSlide } from "@/components/slide-editor/surface/TemplateV2KonvaSlide";
 import {
   TEMPLATE_V2_INSERT_ELEMENTS_EVENT,
@@ -11,9 +21,13 @@ import type { TemplateV2Layout } from "@/components/slide-editor/importing/templ
 import type { SlideElement } from "@/components/slide-editor/types";
 import {
   TECH_PACK_PAGE_SIZE,
+  TECH_PACK_SECTION_OPTIONS,
   TECH_PACK_TEMPLATES,
+  createTechPackSectionPage,
+  numberTechPackPages,
   techPackToEditorPages,
   type TechPackEditorPage,
+  type TechPackSectionType,
   type TechPackTemplateId,
 } from "./techPackAdapter";
 import type { TechPackDocument } from "./techPackModel";
@@ -62,19 +76,6 @@ function newCalloutElements(index: number): SlideElement[] {
   ];
 }
 
-function blankPage(index: number): TechPackEditorPage {
-  return {
-    id: `custom-${Date.now()}`,
-    title: `Custom section ${index}`,
-    layout: {
-      id: `custom-section-${index}`,
-      description: "User-created Tech Pack section",
-      background: "#FFFFFF",
-      elements: [],
-    } as TemplateV2Layout,
-  };
-}
-
 export function TechPackSpike({ document }: { document: TechPackDocument }) {
   const [workingDocument, setWorkingDocument] = useState(document);
   const [templateId, setTemplateId] = useState<TechPackTemplateId>("upper-two-page");
@@ -85,10 +86,16 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
   const [displayScale, setDisplayScale] = useState(0.62);
   const [calloutCount, setCalloutCount] = useState(document.parts.length);
   const [viewMode, setViewMode] = useState<"document" | "static">("document");
+  const [sectionPickerOpen, setSectionPickerOpen] = useState(false);
+  const [draggedPageId, setDraggedPageId] = useState<string | null>(null);
+  const [renamingPageId, setRenamingPageId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
   const canvasContainerRef = useRef<HTMLElement | null>(null);
   const sourceDocumentRef = useRef(document);
+  const sectionInstanceRef = useRef(0);
+  const numberedPages = useMemo(() => numberTechPackPages(pages), [pages]);
   const activeIndex = Math.max(0, pages.findIndex((page) => page.id === activePageId));
-  const activePage = pages[activeIndex];
+  const activePage = numberedPages[activeIndex];
 
   useEffect(() => {
     const container = canvasContainerRef.current;
@@ -104,14 +111,22 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
   }, []);
 
   useEffect(() => {
+    window.localStorage.setItem("vizcom-tech-pack-spike-pages", JSON.stringify(numberedPages));
+  }, [numberedPages]);
+
+  useEffect(() => {
     if (sourceDocumentRef.current === document) return;
     sourceDocumentRef.current = document;
     const generatedPages = techPackToEditorPages(document, templateId);
     setWorkingDocument(document);
-    setPages((current) => [
-      ...generatedPages,
-      ...current.filter((page) => page.id.startsWith("custom-")),
-    ]);
+    setPages((current) => {
+      const generatedById = new Map(generatedPages.map((page) => [page.id, page]));
+      const next = current.map((page) => page.sourceManaged ? (generatedById.get(page.id) ?? page) : page);
+      generatedPages.forEach((page) => {
+        if (!next.some((candidate) => candidate.id === page.id)) next.push(page);
+      });
+      return next;
+    });
     setActivePageId((current) =>
       generatedPages.some((page) => page.id === current)
         ? current
@@ -141,22 +156,82 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
 
   const chooseTemplate = (nextTemplateId: TechPackTemplateId) => {
     if (viewMode === "static") return;
-    const nextPages = techPackToEditorPages(workingDocument, nextTemplateId);
+    const generatedPages = techPackToEditorPages(workingDocument, nextTemplateId);
+    const nextPages = [...generatedPages, ...pages.filter((page) => !page.sourceManaged)];
     setTemplateId(nextTemplateId);
     setPages(nextPages);
     setActivePageId(nextPages[0].id);
     setSavedAt("Created from Vizcom template · source links preserved");
   };
 
-  const addPage = () => {
-    const page = blankPage(pages.length + 1);
+  const addPage = (sectionType: TechPackSectionType) => {
+    sectionInstanceRef.current += 1;
+    const page = createTechPackSectionPage(
+      workingDocument,
+      sectionType,
+      `${Date.now()}-${sectionInstanceRef.current}`,
+    );
     setPages((current) => [...current, page]);
     setActivePageId(page.id);
-    setSavedAt("New custom section · unsaved");
+    setSectionPickerOpen(false);
+    setSavedAt(`${page.title} section added · saved`);
+  };
+
+  const duplicatePage = (page: TechPackEditorPage) => {
+    sectionInstanceRef.current += 1;
+    const copy = structuredClone(page);
+    copy.id = `custom-${page.sectionType}-${Date.now()}-${sectionInstanceRef.current}`;
+    copy.title = `${page.title} copy`;
+    copy.sourceManaged = false;
+    const index = pages.findIndex((candidate) => candidate.id === page.id);
+    setPages((current) => [
+      ...current.slice(0, index + 1),
+      copy,
+      ...current.slice(index + 1),
+    ]);
+    setActivePageId(copy.id);
+    setSavedAt(`${page.title} duplicated · saved`);
+  };
+
+  const deletePage = (pageId: string) => {
+    if (pages.length === 1) return;
+    const index = pages.findIndex((page) => page.id === pageId);
+    const next = pages.filter((page) => page.id !== pageId);
+    setPages(next);
+    if (activePageId === pageId) setActivePageId(next[Math.min(index, next.length - 1)].id);
+    setSavedAt("Section deleted · saved");
+  };
+
+  const startRename = (page: TechPackEditorPage) => {
+    setRenamingPageId(page.id);
+    setRenameDraft(page.title);
+  };
+
+  const saveRename = () => {
+    const title = renameDraft.trim();
+    if (!renamingPageId || !title) return;
+    setPages((current) => current.map((page) => page.id === renamingPageId ? { ...page, title } : page));
+    setRenamingPageId(null);
+    setSavedAt("Section renamed · saved");
+  };
+
+  const reorderPage = (targetPageId: string) => {
+    if (!draggedPageId || draggedPageId === targetPageId) return;
+    setPages((current) => {
+      const from = current.findIndex((page) => page.id === draggedPageId);
+      const to = current.findIndex((page) => page.id === targetPageId);
+      if (from < 0 || to < 0) return current;
+      const next = [...current];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+    setDraggedPageId(null);
+    setSavedAt("Sections reordered · saved");
   };
 
   const openPrintView = () => {
-    window.localStorage.setItem("vizcom-tech-pack-spike-pages", JSON.stringify(pages));
+    window.localStorage.setItem("vizcom-tech-pack-spike-pages", JSON.stringify(numberedPages));
     window.open("/tech-pack-spike/print", "_blank", "noopener,noreferrer");
   };
 
@@ -187,9 +262,36 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
           <button disabled={viewMode === "static"} className="flex h-9 items-center gap-2 rounded-lg border border-white/10 px-3 text-xs text-white/70 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-35" type="button" onClick={addCallout}>
             <MessageSquarePlus className="h-4 w-4" /> Add callout
           </button>
-          <button disabled={viewMode === "static"} className="flex h-9 items-center gap-2 rounded-lg border border-white/10 px-3 text-xs text-white/70 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-35" type="button" onClick={addPage}>
-            <FilePlus2 className="h-4 w-4" /> Add section
-          </button>
+          <div className="relative">
+            <button
+              disabled={viewMode === "static"}
+              aria-expanded={sectionPickerOpen}
+              className="flex h-9 items-center gap-2 rounded-lg border border-white/10 px-3 text-xs text-white/70 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-35"
+              type="button"
+              onClick={() => setSectionPickerOpen((open) => !open)}
+            >
+              <FilePlus2 className="h-4 w-4" /> Add section
+            </button>
+            {sectionPickerOpen && viewMode === "document" && (
+              <div className="absolute right-0 top-11 z-50 w-[430px] rounded-2xl border border-white/10 bg-[#202126] p-3 shadow-2xl">
+                <div className="mb-2 flex items-center justify-between px-1">
+                  <div>
+                    <p className="text-xs font-semibold text-white">Add a document section</p>
+                    <p className="mt-0.5 text-[10px] text-white/40">Uses the current Vizcom design data where available</p>
+                  </div>
+                  <button aria-label="Close section picker" type="button" onClick={() => setSectionPickerOpen(false)} className="rounded-md p-1 text-white/45 hover:bg-white/5 hover:text-white"><X className="h-4 w-4" /></button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {TECH_PACK_SECTION_OPTIONS.map((option) => (
+                    <button key={option.id} type="button" onClick={() => addPage(option.id)} className="rounded-xl border border-white/8 bg-white/[0.03] p-3 text-left hover:border-[#6962FF] hover:bg-[#6962FF]/10">
+                      <span className="block text-xs font-semibold text-white/90">{option.label}</span>
+                      <span className="mt-1 block text-[10px] leading-4 text-white/40">{option.description}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
           <button className="flex h-9 items-center gap-2 rounded-lg bg-[#5B55F7] px-3 text-xs font-semibold hover:bg-[#6B65FF]" type="button" onClick={openPrintView}>
             <Download className="h-4 w-4" /> Print / PDF
           </button>
@@ -203,23 +305,46 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
             <span className="text-[11px] text-white/30">{pages.length}</span>
           </div>
           <div className="space-y-3">
-            {pages.map((page, index) => (
-              <button
+            {numberedPages.map((page, index) => (
+              <article
                 key={page.id}
-                type="button"
-                onClick={() => setActivePageId(page.id)}
-                className={`w-full rounded-xl border p-2 text-left transition ${page.id === activePage.id ? "border-[#6962FF] bg-[#25252D]" : "border-white/8 bg-[#1D1E23] hover:border-white/20"}`}
+                draggable={viewMode === "document" && renamingPageId !== page.id}
+                onDragStart={() => setDraggedPageId(page.id)}
+                onDragEnd={() => setDraggedPageId(null)}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={() => reorderPage(page.id)}
+                className={`w-full rounded-xl border p-2 text-left transition ${page.id === activePage.id ? "border-[#6962FF] bg-[#25252D]" : "border-white/8 bg-[#1D1E23] hover:border-white/20"} ${draggedPageId === page.id ? "opacity-45" : ""}`}
               >
-                <div className="overflow-hidden rounded-md bg-white" style={{ aspectRatio: `${TECH_PACK_PAGE_SIZE.width}/${TECH_PACK_PAGE_SIZE.height}` }}>
-                  <div className="origin-top-left" style={{ width: TECH_PACK_PAGE_SIZE.width, height: TECH_PACK_PAGE_SIZE.height, transform: "scale(0.17)" }}>
-                    <TemplateV2KonvaSlide layout={page.layout} isEditMode={false} slideId={page.id} slideIndex={index} renderIndex={index} displayScale={0.17} />
+                <button type="button" onClick={() => setActivePageId(page.id)} className="block w-full text-left">
+                  <div className="overflow-hidden rounded-md bg-white" style={{ aspectRatio: `${TECH_PACK_PAGE_SIZE.width}/${TECH_PACK_PAGE_SIZE.height}` }}>
+                    <div className="origin-top-left" style={{ width: TECH_PACK_PAGE_SIZE.width, height: TECH_PACK_PAGE_SIZE.height, transform: "scale(0.17)" }}>
+                      <TemplateV2KonvaSlide layout={page.layout} isEditMode={false} slideId={page.id} slideIndex={index} renderIndex={index} displayScale={0.17} />
+                    </div>
                   </div>
+                </button>
+                <div className="mt-2 flex min-w-0 items-center gap-1 text-xs">
+                  {viewMode === "document" && <GripVertical className="h-3.5 w-3.5 shrink-0 cursor-grab text-white/25" />}
+                  <span className="shrink-0 text-white/35">{String(index + 1).padStart(2, "0")}</span>
+                  {renamingPageId === page.id ? (
+                    <form className="flex min-w-0 flex-1 items-center gap-1" onSubmit={(event) => { event.preventDefault(); saveRename(); }}>
+                      <input autoFocus aria-label="Section name" value={renameDraft} onChange={(event) => setRenameDraft(event.target.value)} className="min-w-0 flex-1 rounded border border-[#6962FF] bg-black/20 px-1.5 py-1 text-[11px] text-white outline-none" />
+                      <button aria-label="Save section name" title="Save name" type="submit" className="rounded p-1 text-[#8D88FF] hover:bg-white/5"><Check className="h-3.5 w-3.5" /></button>
+                      <button aria-label="Cancel rename" title="Cancel rename" type="button" onClick={() => setRenamingPageId(null)} className="rounded p-1 text-white/40 hover:bg-white/5"><X className="h-3.5 w-3.5" /></button>
+                    </form>
+                  ) : (
+                    <>
+                      <button type="button" onClick={() => setActivePageId(page.id)} className="min-w-0 flex-1 truncate text-left text-white/75">{page.title}</button>
+                      {viewMode === "document" && (
+                        <div className="flex shrink-0 items-center">
+                          <button aria-label={`Rename ${page.title}`} title="Rename" type="button" onClick={() => startRename(page)} className="rounded p-1 text-white/30 hover:bg-white/5 hover:text-white"><Pencil className="h-3.5 w-3.5" /></button>
+                          <button aria-label={`Duplicate ${page.title}`} title="Duplicate" type="button" onClick={() => duplicatePage(page)} className="rounded p-1 text-white/30 hover:bg-white/5 hover:text-white"><Copy className="h-3.5 w-3.5" /></button>
+                          <button aria-label={`Delete ${page.title}`} title="Delete" disabled={pages.length === 1} type="button" onClick={() => deletePage(page.id)} className="rounded p-1 text-white/30 hover:bg-white/5 hover:text-red-300 disabled:opacity-20"><Trash2 className="h-3.5 w-3.5" /></button>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
-                <div className="mt-2 flex items-center gap-2 text-xs">
-                  <span className="text-white/35">{String(index + 1).padStart(2, "0")}</span>
-                  <span className="truncate text-white/75">{page.title}</span>
-                </div>
-              </button>
+              </article>
             ))}
           </div>
         </aside>
