@@ -118,8 +118,8 @@ function automaticCallouts(
     return sorted.flatMap((part, index) => {
       const sourceX = imageRect.x + part.anchor.x * imageRect.width;
       const sourceY = imageRect.y + part.anchor.y * imageRect.height;
-      const span = 256;
-      const labelY = sorted.length === 1 ? 312 : 184 + (span * index) / (sorted.length - 1);
+      const span = 210;
+      const labelY = sorted.length === 1 ? 260 : 152 + (span * index) / (sorted.length - 1);
       const isLeft = side === "left";
       const labelX = isLeft ? 34 : 776;
       const labelWidth = isLeft ? 142 : 140;
@@ -176,54 +176,90 @@ function pendingView(x: number, y: number, width: number, height: number, label:
   ];
 }
 
-function metadataHeader(document: TechPackDocument, page: number, pageCount: number): SlideElement[] {
-  const fields = [
-    ["PRODUCT", document.title], ["ITEM", document.styleNumber], ["INTRO", document.header.introDate],
-    ["DATE", document.header.currentDate], ["ITEM CODE", document.header.itemCode], ["GBU", document.header.businessUnit],
-    ["PROTO", document.header.protoRound], ["SEQUENCE", document.header.sequenceId], ["FACTORY", document.header.developmentFactory],
-    ["DESIGNER", document.header.designer], ["DEVELOPER", document.header.developer], ["TYPE", document.header.projectType],
-    ["REFERENCE", document.header.referenceNumber], ["PAGE", `${page} OF ${pageCount}`],
-  ];
-  const logoWidth = 92;
-  const fieldWidth = (pageWidth - 64 - logoWidth) / fields.length;
+function documentHeader(document: TechPackDocument, page: number, pageCount: number): SlideElement[] {
   const elements: SlideElement[] = [
-    rect(32, 24, pageWidth - 64, 56, paper, ink), rect(32, 24, logoWidth, 56, ink),
-    text("VIZCOM", 42, 35, logoWidth - 20, 18, 14, { bold: true, color: "#FFFFFF" }),
-    text("TECH PACK", 42, 55, logoWidth - 20, 12, 7, { bold: true, color: "#AAA7FF" }),
+    rect(32, 24, pageWidth - 64, 44, paper, ink),
+    rect(32, 24, 92, 44, ink),
+    text("VIZCOM", 42, 33, 72, 15, 12, { bold: true, color: "#FFFFFF" }),
+    text("TECH PACK", 42, 50, 72, 10, 6, { bold: true, color: "#AAA7FF" }),
+    text(document.title, 142, 32, 500, 16, 11, { bold: true, name: "document_title" }),
+    text(`STYLE ${document.styleNumber}`, 142, 51, 320, 10, 7, { color: muted }),
+    text(document.header.currentDate, 900, 33, 170, 14, 8, { bold: true, align: "right" }),
+    text(`PAGE ${page} / ${pageCount}`, 1080, 33, 96, 14, 8, { bold: true, align: "right" }),
   ];
-  fields.forEach(([label, value], index) => {
-    const x = 32 + logoWidth + index * fieldWidth;
-    elements.push(line(x, 24, x, 80, rule));
-    elements.push(text(label, x + 4, 31, fieldWidth - 8, 10, 6, { bold: true, color: muted }));
-    elements.push(text(value, x + 4, 48, fieldWidth - 8, 24, 7, { bold: true }));
+  return elements;
+}
+
+function componentTable(document: TechPackDocument, startY: number): SlideElement[] {
+  const x = 32;
+  const widths = [44, 190, 190, 250, 150, 336];
+  const labels = ["#", "COMPONENT", "COLOR", "MATERIAL", "FINISH", "SUPPLIER / REFERENCE"];
+  const headerHeight = 26;
+  const rowHeight = Math.max(18, Math.min(30, 260 / Math.max(1, document.parts.length)));
+  const totalHeight = headerHeight + rowHeight * document.parts.length;
+  const columnX = widths.reduce<number[]>((positions, width) => {
+    positions.push(positions.at(-1)! + width);
+    return positions;
+  }, [x]);
+  const elements: SlideElement[] = [
+    rect(x, startY, 1160, totalHeight, paper, ink),
+    rect(x, startY, 1160, headerHeight, ink),
+  ];
+  labels.forEach((label, index) => {
+    elements.push(text(label, columnX[index] + 8, startY + 8, widths[index] - 16, 11, 7, {
+      bold: true,
+      color: "#FFFFFF",
+    }));
+  });
+  columnX.slice(1, -1).forEach((position) => {
+    elements.push(line(position, startY, position, startY + totalHeight, rule));
+  });
+  document.parts.forEach((part, index) => {
+    const rowY = startY + headerHeight + index * rowHeight;
+    if (index > 0) elements.push(line(x, rowY, x + 1160, rowY, rule));
+    elements.push(text(String(index + 1).padStart(2, "0"), x + 8, rowY + 7, widths[0] - 16, 10, 7, {
+      bold: true,
+      color: muted,
+    }));
+    elements.push(text(part.name, columnX[1] + 8, rowY + 7, widths[1] - 16, 11, 8, {
+      bold: true,
+      name: `part_${part.id}_name`,
+    }));
+    elements.push(rect(columnX[2] + 8, rowY + 6, 12, 12, part.colorHex, "#BFC1C8"));
+    elements.push(text(`${part.colorName}  ${part.colorHex}`, columnX[2] + 28, rowY + 7, widths[2] - 36, 10, 7));
+    elements.push(text(part.material, columnX[3] + 8, rowY + 7, widths[3] - 16, 10, 7, {
+      color: part.material === "Not specified" ? violet : ink,
+    }));
+    elements.push(text(part.finish, columnX[4] + 8, rowY + 7, widths[4] - 16, 10, 7, { color: muted }));
+    elements.push(text(
+      [part.supplier, part.vendorItemIdentifier, part.materialPartNumber].filter((value) => value && value !== "TBD").join(" · ") || "TBD",
+      columnX[5] + 8,
+      rowY + 7,
+      widths[5] - 16,
+      10,
+      7,
+      { color: muted },
+    ));
   });
   return elements;
 }
 
-function partCard(part: TechPackPart, index: number, x: number, y: number, width: number, height: number): SlideElement[] {
-  return [
-    rect(x, y, width, height, paper, rule), rect(x, y, width, 25, index % 2 === 0 ? ink : "#2A2B31"),
-    text(`${String(index + 1).padStart(2, "0")}  ${part.name.toUpperCase()}`, x + 9, y + 7, width - 18, 12, 8, { bold: true, color: "#FFFFFF", name: `part_${part.id}_name` }),
-    rect(x + 10, y + 37, 20, 20, part.colorHex, "#BFC1C8"),
-    text(`${part.colorName.toUpperCase()}  ${part.colorHex}`, x + 38, y + 37, width - 48, 20, 8, { bold: true }),
-    text(part.material, x + 10, y + 67, width - 20, 20, 8, { bold: true, color: violet }),
-    text(`VENDOR  ${part.supplier}  ·  VII  ${part.vendorItemIdentifier}`, x + 10, y + 94, width - 20, 16, 7, { color: muted }),
-    text(`MATERIAL  ${part.vendorMaterialName}`, x + 10, y + 113, width - 20, 16, 7),
-    text(`FINISH  ${part.finish}  ·  MPN  ${part.materialPartNumber}`, x + 10, y + 132, width - 20, 16, 7, { color: muted }),
-    text(`REGION  ${part.regionLayerId}`, x + 10, y + height - 20, width - 20, 12, 6, { color: violet }),
-  ];
-}
-
-function componentGrid(document: TechPackDocument, startY: number, rows: 1 | 3): SlideElement[] {
-  const columns = rows === 3 ? 6 : 4;
+function colorSwatchTable(document: TechPackDocument, startY: number): SlideElement[] {
+  const columns = 3;
   const gap = 8;
-  const width = (1160 - gap * (columns - 1)) / columns;
-  const availableHeight = pageHeight - startY - 30;
-  const height = rows === 3 ? Math.min(130, (availableHeight - gap * 2) / 3) : availableHeight;
+  const width = (550 - gap * (columns - 1)) / columns;
+  const rowHeight = 50;
   return document.parts.flatMap((part, index) => {
-    const row = Math.floor(index / columns);
     const column = index % columns;
-    return partCard(part, index, 32 + column * (width + gap), startY + row * (height + gap), width, height);
+    const row = Math.floor(index / columns);
+    const x = 632 + column * (width + gap);
+    const y = startY + row * (rowHeight + gap);
+    return [
+      rect(x, y, width, rowHeight, paper, rule),
+      rect(x + 9, y + 10, 22, 22, part.colorHex, "#BFC1C8"),
+      text(part.name, x + 40, y + 9, width - 48, 13, 7, { bold: true }),
+      text(`${part.colorName} · ${part.colorHex}`, x + 40, y + 27, width - 48, 12, 6, { color: muted }),
+    ];
   });
 }
 
@@ -235,29 +271,25 @@ function mainSpecificationPage(document: TechPackDocument, templateId: TechPackT
   const primary = document.views.find((view) => view.label === "Primary") ?? document.views[0];
   const top = document.views.find((view) => view.label === "Top");
   const heel = document.views.find((view) => view.label === "Heel");
-  const threeRows = templateId === "upper-three-row";
-  const gridY = threeRows ? 520 : 604;
-  const primaryImageRect = { x: 188, y: 142, width: 572, height: threeRows ? 330 : 408 };
+  const primaryImageRect = { x: 188, y: 124, width: 572, height: 300 };
   return {
     id: "upper-specification",
     title: "Upper specification",
     layout: layout("tech-pack-upper-specification", "Region Map-backed upper specification", [
-      ...metadataHeader(document, 1, pageCount),
-      text("UPPER SPECIFICATION", 32, 95, 260, 20, 11, { bold: true, color: violet }),
-      text("REGION MAP NOMENCLATURE + MATERIAL CALLOUTS", 815, 97, 377, 16, 8, { bold: true, color: muted, align: "right" }),
-      line(32, 120, 1192, 120, ink, 2),
+      ...documentHeader(document, 1, pageCount),
+      text("UPPER SPECIFICATION", 32, 84, 260, 20, 11, { bold: true, color: violet }),
+      text("REGION MAP + MATERIAL CALLOUTS", 815, 86, 377, 16, 8, { bold: true, color: muted, align: "right" }),
+      line(32, 108, 1192, 108, ink, 2),
       image(primary.imageUrl ?? document.primarySource.imageUrl, primaryImageRect.x, primaryImageRect.y, primaryImageRect.width, primaryImageRect.height, "primary_lateral_view"),
       ...automaticCallouts(document.parts, primaryImageRect),
-      text("LATERAL · SELECTED PRIMARY DESIGN · ALPHA-ANCHORED REGION CALLOUTS", 188, threeRows ? 480 : 558, 572, 16, 7, { bold: true, color: muted, align: "center" }),
-      ...(top?.imageUrl ? [image(top.imageUrl, 932, 142, 116, 158, "top_view")] : pendingView(932, 142, 116, 158, "Top")),
-      ...(heel?.imageUrl ? [image(heel.imageUrl, 1062, 142, 130, 158, "heel_view")] : pendingView(1062, 142, 130, 158, "Heel")),
-      rect(932, 318, 260, threeRows ? 154 : 232, violetSoft, "#C9C6FF"),
-      text("DESIGN INTENT", 948, 334, 150, 14, 8, { bold: true, color: violet }),
-      text(document.intent, 948, 358, 228, threeRows ? 78 : 104, 9, { name: "design_intent" }),
-      text("SOURCE PROVENANCE", 948, threeRows ? 444 : 474, 160, 14, 7, { bold: true, color: violet }),
-      text(`${document.primarySource.workbenchId}\n${document.primarySource.assetId}`, 948, threeRows ? 462 : 496, 228, 40, 7, { color: muted, name: "source_provenance" }),
-      text(threeRows ? "COMPONENT SPECIFICATIONS · 3 ROW CAPACITY" : "COMPONENT SPECIFICATIONS · REGION MAP LINKED", 32, gridY - 23, 470, 14, 8, { bold: true, color: violet }),
-      ...componentGrid(document, gridY, threeRows ? 3 : 1),
+      text("LATERAL · SELECTED PRIMARY DESIGN", 188, 436, 572, 16, 7, { bold: true, color: muted, align: "center" }),
+      ...(top?.imageUrl ? [image(top.imageUrl, 932, 124, 116, 142, "top_view")] : pendingView(932, 124, 116, 142, "Top")),
+      ...(heel?.imageUrl ? [image(heel.imageUrl, 1062, 124, 130, 142, "heel_view")] : pendingView(1062, 124, 130, 142, "Heel")),
+      rect(932, 280, 260, 144, violetSoft, "#C9C6FF"),
+      text("DESIGN INTENT", 948, 296, 150, 14, 8, { bold: true, color: violet }),
+      text(document.intent, 948, 320, 228, 88, 9, { name: "design_intent" }),
+      text("COMPONENT SPECIFICATIONS", 32, 462, 470, 14, 8, { bold: true, color: violet }),
+      ...componentTable(document, 482),
     ]),
   };
 }
@@ -269,31 +301,19 @@ function detailPage(document: TechPackDocument): TechPackEditorPage {
     id: "graphic-sole-details",
     title: "Graphic & sole details",
     layout: layout("tech-pack-graphic-sole-details", "Optional graphic, cross-section, and sole detail page", [
-      ...metadataHeader(document, 2, 2),
-      text("GRAPHIC DETAILS", 42, 104, 520, 20, 12, { bold: true, color: violet }),
-      text("SOLE UNIT DETAILS", 632, 104, 520, 20, 12, { bold: true, color: violet }),
-      line(612, 104, 612, 746, ink, 2), line(42, 134, 582, 134, ink, 2), line(632, 134, 1182, 134, ink, 2),
-      rect(42, 154, 540, 296, "#F7F7F9", rule),
-      text("DROP REGION MAP GRAPHIC OR CROSS-SECTION HERE", 74, 276, 476, 20, 11, { bold: true, color: muted, align: "center" }),
-      text("Add sections by dragging selected workbench outputs into this page.", 74, 308, 476, 40, 9, { color: muted, align: "center" }),
-      ...(top?.imageUrl ? [image(top.imageUrl, 652, 154, 250, 296, "sole_top_view")] : pendingView(652, 154, 250, 296, "Outsole / top")),
-      ...(heel?.imageUrl ? [image(heel.imageUrl, 922, 154, 240, 296, "heel_detail_view")] : pendingView(922, 154, 240, 296, "Heel")),
-      text("CONSTRUCTION + REVIEW NOTES", 42, 486, 410, 18, 10, { bold: true, color: violet }),
-      rect(42, 514, 540, 218, paper, rule),
-      text(document.constructionNotes.map((note, index) => `${index + 1}. ${note}`).join("\n\n"), 62, 534, 500, 170, 10, { name: "construction_notes" }),
-      text("COLOR SWATCHES", 632, 486, 250, 18, 10, { bold: true, color: violet }),
-      ...document.parts.flatMap((part, index) => {
-        const column = index % 2;
-        const row = Math.floor(index / 2);
-        const x = 632 + column * 275;
-        const y = 514 + row * 104;
-        return [
-          rect(x, y, 255, 88, paper, rule), rect(x + 12, y + 14, 28, 28, part.colorHex, "#BFC1C8"),
-          text(part.name.toUpperCase(), x + 52, y + 13, 188, 14, 8, { bold: true }),
-          text(`${part.colorName} · ${part.colorHex}`, x + 52, y + 34, 188, 14, 7, { color: muted }),
-          text(part.materialPartNumber, x + 52, y + 56, 188, 14, 7, { color: violet }),
-        ];
-      }),
+      ...documentHeader(document, 2, 2),
+      text("GRAPHIC DETAILS", 42, 86, 520, 20, 12, { bold: true, color: violet }),
+      text("SOLE UNIT DETAILS", 632, 86, 520, 20, 12, { bold: true, color: violet }),
+      line(612, 86, 612, 746, ink, 2), line(42, 113, 582, 113, ink, 2), line(632, 113, 1182, 113, ink, 2),
+      rect(42, 130, 540, 250, "#F7F7F9", rule),
+      text("DROP A GRAPHIC OR CROSS-SECTION HERE", 74, 234, 476, 20, 11, { bold: true, color: muted, align: "center" }),
+      ...(top?.imageUrl ? [image(top.imageUrl, 652, 130, 250, 250, "sole_top_view")] : pendingView(652, 130, 250, 250, "Outsole / top")),
+      ...(heel?.imageUrl ? [image(heel.imageUrl, 922, 130, 240, 250, "heel_detail_view")] : pendingView(922, 130, 240, 250, "Heel")),
+      text("CONSTRUCTION + REVIEW NOTES", 42, 416, 410, 18, 10, { bold: true, color: violet }),
+      rect(42, 443, 540, 290, paper, rule),
+      text(document.constructionNotes.map((note, index) => `${index + 1}. ${note}`).join("\n\n"), 62, 463, 500, 240, 10, { name: "construction_notes" }),
+      text("COLOR SWATCHES", 632, 416, 250, 18, 10, { bold: true, color: violet }),
+      ...colorSwatchTable(document, 443),
     ]),
   };
 }

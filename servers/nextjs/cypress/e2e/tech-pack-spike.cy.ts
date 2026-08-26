@@ -35,6 +35,8 @@ describe("Vizcom Tech Pack editor spike", () => {
     cy.get(".print-page").should("have.length", 2);
     cy.contains("Performance Runner 001").should("exist");
     cy.contains("UPPER SPECIFICATION").should("exist");
+    cy.contains("SUPPLIER / REFERENCE").should("exist");
+    cy.contains("ITEM CODE").should("not.exist");
     cy.contains("GRAPHIC DETAILS").should("exist");
 
     cy.screenshot("tech-pack-print", { capture: "fullPage" });
