@@ -121,7 +121,11 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
     setWorkingDocument(document);
     setPages((current) => {
       const generatedById = new Map(generatedPages.map((page) => [page.id, page]));
-      const next = current.map((page) => page.sourceManaged ? (generatedById.get(page.id) ?? page) : page);
+      const next = current.flatMap((page) => {
+        if (!page.sourceManaged) return [page];
+        const generated = generatedById.get(page.id);
+        return generated ? [generated] : [];
+      });
       generatedPages.forEach((page) => {
         if (!next.some((candidate) => candidate.id === page.id)) next.push(page);
       });
@@ -174,7 +178,7 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
     setPages((current) => [...current, page]);
     setActivePageId(page.id);
     setSectionPickerOpen(false);
-    setSavedAt(`${page.title} section added · saved`);
+    setSavedAt(`${page.title} page added · saved`);
   };
 
   const duplicatePage = (page: TechPackEditorPage) => {
@@ -199,7 +203,7 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
     const next = pages.filter((page) => page.id !== pageId);
     setPages(next);
     if (activePageId === pageId) setActivePageId(next[Math.min(index, next.length - 1)].id);
-    setSavedAt("Section deleted · saved");
+    setSavedAt("Page deleted · saved");
   };
 
   const startRename = (page: TechPackEditorPage) => {
@@ -212,7 +216,7 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
     if (!renamingPageId || !title) return;
     setPages((current) => current.map((page) => page.id === renamingPageId ? { ...page, title } : page));
     setRenamingPageId(null);
-    setSavedAt("Section renamed · saved");
+    setSavedAt("Page renamed · saved");
   };
 
   const reorderPage = (targetPageId: string) => {
@@ -227,7 +231,7 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
       return next;
     });
     setDraggedPageId(null);
-    setSavedAt("Sections reordered · saved");
+    setSavedAt("Pages reordered · saved");
   };
 
   const openPrintView = () => {
@@ -243,7 +247,11 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
           <div className="h-5 w-px bg-white/15" />
           <div>
             <h1 className="text-sm font-semibold">{workingDocument.title}</h1>
-            <p className="text-[11px] text-white/45">Tech Pack · {savedAt}</p>
+            <p className="text-[11px] text-white/45">
+              {workingDocument.sourceSection
+                ? `${workingDocument.sourceSection.title} · ${workingDocument.sourceSection.assets.length + 1} linked workbench items`
+                : "Tech Pack"} · {savedAt}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -270,16 +278,16 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
               type="button"
               onClick={() => setSectionPickerOpen((open) => !open)}
             >
-              <FilePlus2 className="h-4 w-4" /> Add section
+              <FilePlus2 className="h-4 w-4" /> Add page
             </button>
             {sectionPickerOpen && viewMode === "document" && (
               <div className="absolute right-0 top-11 z-50 w-[430px] rounded-2xl border border-white/10 bg-[#202126] p-3 shadow-2xl">
                 <div className="mb-2 flex items-center justify-between px-1">
                   <div>
-                    <p className="text-xs font-semibold text-white">Add a document section</p>
+                    <p className="text-xs font-semibold text-white">Add a document page</p>
                     <p className="mt-0.5 text-[10px] text-white/40">Uses the current Vizcom design data where available</p>
                   </div>
-                  <button aria-label="Close section picker" type="button" onClick={() => setSectionPickerOpen(false)} className="rounded-md p-1 text-white/45 hover:bg-white/5 hover:text-white"><X className="h-4 w-4" /></button>
+                  <button aria-label="Close page picker" type="button" onClick={() => setSectionPickerOpen(false)} className="rounded-md p-1 text-white/45 hover:bg-white/5 hover:text-white"><X className="h-4 w-4" /></button>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   {TECH_PACK_SECTION_OPTIONS.map((option) => (
@@ -301,7 +309,7 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
       <div className="flex min-h-0 flex-1">
         <aside className="block w-64 shrink-0 overflow-y-auto border-r border-white/10 bg-[#17181D] p-4">
           <div className="mb-3 flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/40">Sections</span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/40">Pages</span>
             <span className="text-[11px] text-white/30">{pages.length}</span>
           </div>
           <div className="space-y-3">
@@ -327,8 +335,8 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
                   <span className="shrink-0 text-white/35">{String(index + 1).padStart(2, "0")}</span>
                   {renamingPageId === page.id ? (
                     <form className="flex min-w-0 flex-1 items-center gap-1" onSubmit={(event) => { event.preventDefault(); saveRename(); }}>
-                      <input autoFocus aria-label="Section name" value={renameDraft} onChange={(event) => setRenameDraft(event.target.value)} className="min-w-0 flex-1 rounded border border-[#6962FF] bg-black/20 px-1.5 py-1 text-[11px] text-white outline-none" />
-                      <button aria-label="Save section name" title="Save name" type="submit" className="rounded p-1 text-[#8D88FF] hover:bg-white/5"><Check className="h-3.5 w-3.5" /></button>
+                      <input autoFocus aria-label="Page name" value={renameDraft} onChange={(event) => setRenameDraft(event.target.value)} className="min-w-0 flex-1 rounded border border-[#6962FF] bg-black/20 px-1.5 py-1 text-[11px] text-white outline-none" />
+                      <button aria-label="Save page name" title="Save name" type="submit" className="rounded p-1 text-[#8D88FF] hover:bg-white/5"><Check className="h-3.5 w-3.5" /></button>
                       <button aria-label="Cancel rename" title="Cancel rename" type="button" onClick={() => setRenamingPageId(null)} className="rounded p-1 text-white/40 hover:bg-white/5"><X className="h-3.5 w-3.5" /></button>
                     </form>
                   ) : (

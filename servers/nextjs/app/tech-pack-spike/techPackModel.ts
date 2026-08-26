@@ -44,6 +44,24 @@ export type TechPackHeader = {
   referenceNumber: string;
 };
 
+export type TechPackSourceAsset = {
+  id: string;
+  kind: "image" | "video" | "text" | "color-swatch" | "workflow" | "other";
+  title: string;
+  sourceElementType: string;
+  imageUrl?: string;
+  mediaUrl?: string;
+  text?: string;
+  colors?: string[];
+};
+
+export type TechPackSourceSection = {
+  id: string;
+  title: string;
+  primaryDrawingId: string;
+  assets: TechPackSourceAsset[];
+};
+
 export type TechPackDocument = {
   id: string;
   title: string;
@@ -51,6 +69,7 @@ export type TechPackDocument = {
   revision: string;
   header: TechPackHeader;
   intent: string;
+  sourceSection?: TechPackSourceSection;
   primarySource: TechPackSourceRef;
   views: TechPackView[];
   parts: TechPackPart[];
@@ -77,6 +96,34 @@ export const techPackExample: TechPackDocument = {
   },
   intent:
     "Factory review handoff for the monochrome performance colorway, focused on upper construction and sole assembly.",
+  sourceSection: {
+    id: "section-tech-pack-runner",
+    title: "Runner Tech Pack Sources",
+    primaryDrawingId: "asset-real-sneaker-side",
+    assets: [
+      {
+        id: "asset-material-detail",
+        kind: "image",
+        title: "Upper material detail",
+        sourceElementType: "Drawing",
+        imageUrl: "/tech-pack-assets/real-sneaker-side.png",
+      },
+      {
+        id: "note-construction-review",
+        kind: "text",
+        title: "Construction review",
+        sourceElementType: "WorkbenchElementStickyNote",
+        text: "Prioritize Region Map nomenclature and verify the upper-to-sole assembly before factory release.",
+      },
+      {
+        id: "palette-runner",
+        kind: "color-swatch",
+        title: "Runner color palette",
+        sourceElementType: "WorkbenchElementColorSwatch",
+        colors: ["#A8A8A2", "#3C3C3A", "#E8E5DC", "#171717"],
+      },
+    ],
+  },
   primarySource: {
     assetId: "asset-real-sneaker-side",
     workbenchId: "workbench-tech-pack-spike",

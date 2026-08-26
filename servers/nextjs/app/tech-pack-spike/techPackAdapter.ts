@@ -345,10 +345,67 @@ function detailPage(document: TechPackDocument): TechPackEditorPage {
   };
 }
 
+function sourceSectionPage(document: TechPackDocument): TechPackEditorPage {
+  const sourceSection = document.sourceSection!;
+  const imageAssets = sourceSection.assets.filter((asset) => asset.imageUrl).slice(0, 4);
+  const textAssets = sourceSection.assets.filter((asset) => asset.text);
+  const cardWidth = 360;
+  const cardHeight = 246;
+  const imageElements = imageAssets.flatMap((asset, index) => {
+    const column = index % 2;
+    const row = Math.floor(index / 2);
+    const x = 32 + column * (cardWidth + 16);
+    const y = 146 + row * (cardHeight + 16);
+    return [
+      rect(x, y, cardWidth, cardHeight, "#F7F7F9", rule),
+      image(asset.imageUrl!, x + 10, y + 10, cardWidth - 20, cardHeight - 48, `source_asset_${asset.id}`),
+      text(asset.title, x + 12, y + cardHeight - 29, cardWidth - 24, 14, 8, { bold: true }),
+    ];
+  });
+  const sourceList = sourceSection.assets.map((asset, index) => {
+    const detail = asset.kind === "image"
+      ? "Image"
+      : asset.kind === "color-swatch"
+        ? `${asset.colors?.length ?? 0} colors`
+        : asset.kind.replace("-", " ");
+    return `${String(index + 1).padStart(2, "0")}  ${asset.title} · ${detail}`;
+  });
+  return {
+    id: "vizcom-section-sources",
+    title: sourceSection.title,
+    sectionType: "views",
+    sourceManaged: true,
+    layout: layout("tech-pack-vizcom-section-sources", "Supporting content synced from a Vizcom Section", [
+      ...documentHeader(document, 2, 2),
+      text("VIZCOM TECH PACK SECTION", 32, 84, 440, 20, 11, { bold: true, color: violet }),
+      text(sourceSection.title.toUpperCase(), 676, 86, 516, 16, 8, { bold: true, color: muted, align: "right" }),
+      line(32, 108, 1192, 108, ink, 2),
+      text("SUPPORTING IMAGES", 32, 124, 736, 14, 8, { bold: true, color: violet }),
+      ...(imageElements.length > 0
+        ? imageElements
+        : pendingView(32, 146, 736, 508, "Drag images into this Vizcom Section")),
+      rect(784, 146, 408, 508, paper, rule),
+      text("LINKED WORKBENCH ITEMS", 806, 168, 364, 16, 8, { bold: true, color: violet }),
+      text(sourceList.join("\n\n") || "No supporting items yet.", 806, 202, 364, 250, 9, { name: "source_section_assets" }),
+      ...(textAssets.length > 0
+        ? [
+            line(806, 472, 1170, 472, rule),
+            text("NOTES", 806, 490, 364, 14, 8, { bold: true, color: violet }),
+            text(textAssets.map((asset) => asset.text).join("\n\n"), 806, 520, 364, 108, 9, { name: "source_section_notes" }),
+          ]
+        : []),
+      text(`PRIMARY REGION MAP · ${sourceSection.primaryDrawingId}`, 32, 684, 736, 14, 7, { bold: true, color: muted }),
+      text(`${sourceSection.assets.length} supporting workbench item${sourceSection.assets.length === 1 ? "" : "s"} · live Section sync`, 784, 684, 408, 14, 7, { bold: true, color: violet, align: "right" }),
+    ]),
+  };
+}
+
 export function techPackToEditorPages(document: TechPackDocument, templateId: TechPackTemplateId = "upper-two-page"): TechPackEditorPage[] {
   const pageCount = templateId === "upper-two-page" ? 2 : 1;
   const pages = [mainSpecificationPage(document, templateId, pageCount)];
-  if (templateId === "upper-two-page") pages.push(detailPage(document));
+  if (templateId === "upper-two-page") {
+    pages.push(document.sourceSection ? sourceSectionPage(document) : detailPage(document));
+  }
   return pages;
 }
 

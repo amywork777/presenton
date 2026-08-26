@@ -1,24 +1,24 @@
 describe("Vizcom Tech Pack editor spike", () => {
-  it("creates and manages typed document sections", () => {
+  it("creates and manages typed document pages", () => {
     cy.visit("/tech-pack-spike");
 
     cy.contains("Performance Runner 001").should("be.visible");
     cy.contains("Upper specification").should("be.visible");
-    cy.contains("Graphic & sole details").should("be.visible");
+    cy.contains("Runner Tech Pack Sources").should("be.visible");
     cy.contains("button", "Annotate").should("have.attr", "aria-pressed", "true");
     cy.contains("All Regions").should("not.exist");
     cy.get("svg[aria-label='Interactive Region Map']").should("not.exist");
 
-    cy.contains("button", "Add section").click();
-    cy.contains("Add a document section").should("be.visible");
+    cy.contains("button", "Add page").click();
+    cy.contains("Add a document page").should("be.visible");
     cy.contains("button", "Region Map").should("be.visible");
     cy.contains("button", "Component / BOM").click();
-    cy.contains("Component / BOM section added · saved").should("be.visible");
+    cy.contains("Component / BOM page added · saved").should("be.visible");
 
     cy.get('[aria-label="Rename Component / BOM"]').click();
-    cy.get('input[aria-label="Section name"]').clear().type("Factory BOM");
-    cy.get('[aria-label="Save section name"]').click();
-    cy.contains("Section renamed · saved").should("be.visible");
+    cy.get('input[aria-label="Page name"]').clear().type("Factory BOM");
+    cy.get('[aria-label="Save page name"]').click();
+    cy.contains("Page renamed · saved").should("be.visible");
 
     cy.get('[aria-label="Duplicate Factory BOM"]').click();
     cy.contains("Factory BOM copy").should("exist");
@@ -26,10 +26,10 @@ describe("Vizcom Tech Pack editor spike", () => {
 
     cy.contains("article", "Factory BOM copy").scrollIntoView().trigger("dragstart");
     cy.contains("article", "Upper specification").trigger("dragover").trigger("drop");
-    cy.contains("Sections reordered · saved").should("be.visible");
+    cy.contains("Pages reordered · saved").should("be.visible");
 
     cy.get('[aria-label="Delete Factory BOM copy"]').click();
-    cy.contains("Section deleted · saved").should("be.visible");
+    cy.contains("Page deleted · saved").should("be.visible");
     cy.contains("Factory BOM copy").should("not.exist");
 
     cy.contains("button", "Add callout").click();
@@ -39,7 +39,7 @@ describe("Vizcom Tech Pack editor spike", () => {
       const pages = JSON.parse(win.localStorage.getItem("vizcom-tech-pack-spike-pages") ?? "[]");
       expect(pages.map((page: { title: string }) => page.title)).to.deep.equal([
         "Upper specification",
-        "Graphic & sole details",
+        "Runner Tech Pack Sources",
         "Factory BOM",
       ]);
     });
@@ -55,11 +55,11 @@ describe("Vizcom Tech Pack editor spike", () => {
 
   it("renders the same ordered section document in print mode", () => {
     cy.visit("/tech-pack-spike");
-    cy.contains("button", "Add section").click();
+    cy.contains("button", "Add page").click();
     cy.contains("button", "Construction notes").click();
     cy.get('[aria-label="Rename Construction notes"]').click();
-    cy.get('input[aria-label="Section name"]').clear().type("Factory review notes");
-    cy.get('[aria-label="Save section name"]').click();
+    cy.get('input[aria-label="Page name"]').clear().type("Factory review notes");
+    cy.get('[aria-label="Save page name"]').click();
 
     cy.visit("/tech-pack-spike/print");
 
@@ -68,7 +68,8 @@ describe("Vizcom Tech Pack editor spike", () => {
     cy.contains("UPPER SPECIFICATION").should("exist");
     cy.contains("SUPPLIER / REFERENCE").should("exist");
     cy.contains("ITEM CODE").should("not.exist");
-    cy.contains("GRAPHIC DETAILS").should("exist");
+    cy.contains("VIZCOM TECH PACK SECTION").should("exist");
+    cy.contains("RUNNER TECH PACK SOURCES").should("exist");
     cy.contains("ASSEMBLY + REVIEW").should("exist");
     cy.contains("PAGE 3 / 3").should("exist");
 

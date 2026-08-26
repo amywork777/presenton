@@ -6,11 +6,11 @@ import { techPackExample } from "./techPackModel";
 test("creates editable document pages while preserving Vizcom provenance", () => {
   const pages = techPackToEditorPages(techPackExample);
 
-  assert.deepEqual(pages.map((page) => page.id), ["upper-specification", "graphic-sole-details"]);
+  assert.deepEqual(pages.map((page) => page.id), ["upper-specification", "vizcom-section-sources"]);
   assert.ok(pages.every((page) => page.sourceManaged));
   assert.match(JSON.stringify(pages[0].layout), /real-sneaker-side/);
   assert.match(JSON.stringify(pages[0].layout), /part-upper/);
-  assert.match(JSON.stringify(pages[1].layout), /pending/i);
+  assert.match(JSON.stringify(pages[1].layout), /asset-material-detail/i);
 });
 
 test("creates an editable table row for every Region Map part", () => {
