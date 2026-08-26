@@ -25,8 +25,13 @@ export type TemplateV2ToolbarViewportBounds = {
   top: number;
 };
 
-const STAGE_WIDTH = 1280;
-const STAGE_HEIGHT = 720;
+import {
+  EDITOR_STAGE_HEIGHT,
+  EDITOR_STAGE_WIDTH,
+} from "@/components/slide-editor/types";
+
+const STAGE_WIDTH = EDITOR_STAGE_WIDTH;
+const STAGE_HEIGHT = EDITOR_STAGE_HEIGHT;
 const COMPACT_SELECTION_TOOLBAR_WIDTH = 420;
 const MULTI_SELECTION_TOOLBAR_WIDTH = 300;
 const CONTAINER_SELECTION_TOOLBAR_WIDTH = 760;

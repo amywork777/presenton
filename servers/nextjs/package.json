@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev ",
     "build": "next build",
+    "export:tech-pack-spike": "node scripts/print-tech-pack.mjs",
     "start": "next start",
     "lint": "eslint .",
     "test": "node --test"

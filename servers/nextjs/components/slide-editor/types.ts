@@ -1,6 +1,8 @@
-// Template V2 editor geometry is stored in canvas pixels.
-export const EDITOR_STAGE_WIDTH = 1280;
-export const EDITOR_STAGE_HEIGHT = 720;
+// Vizcom Tech Pack pages use an A4 landscape aspect ratio. Keeping this in the
+// shared geometry constants ensures the interactive editor and static renderer
+// operate on the same printable page coordinate system.
+export const EDITOR_STAGE_WIDTH = 1224;
+export const EDITOR_STAGE_HEIGHT = 792;
 
 export type Nullable<T> = T | null;
 

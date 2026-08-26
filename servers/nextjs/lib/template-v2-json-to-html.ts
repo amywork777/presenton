@@ -144,8 +144,8 @@ const TEMPLATE_V2_MATH_CSS = `
 .presenton-math>.katex>math{color:inherit;font-size:1em;margin:0;overflow:visible}
 `;
 
-export const TEMPLATE_V2_HTML_WIDTH = 1280;
-export const TEMPLATE_V2_HTML_HEIGHT = 720;
+export const TEMPLATE_V2_HTML_WIDTH = 1224;
+export const TEMPLATE_V2_HTML_HEIGHT = 792;
 
 export function templateV2UiToHtml(
   ui: unknown,
