@@ -68,7 +68,7 @@ function text(
     alignment: { horizontal: options.align ?? "left", vertical: "top" },
     runs: [{ text: value }],
     font: {
-      family: "Arial",
+      family: "Inter",
       size,
       color: options.color ?? ink,
       bold: options.bold ?? false,

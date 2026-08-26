@@ -53,7 +53,7 @@ function newCalloutElements(index: number): SlideElement[] {
       size: { width: 32, height: 22 },
       alignment: { horizontal: "center", vertical: "top" },
       runs: [{ text: String(index) }],
-      font: { family: "Arial", size: 13, color: "#FFFFFF", bold: true, line_height: 1 },
+      font: { family: "Inter", size: 13, color: "#FFFFFF", bold: true, line_height: 1 },
       decorative: false,
       name: `callout_${index}_number`,
     },
@@ -69,7 +69,7 @@ function newCalloutElements(index: number): SlideElement[] {
       size: { width: 260, height: 54 },
       alignment: { horizontal: "left", vertical: "top" },
       runs: [{ text: "Describe the construction or manufacturing requirement" }],
-      font: { family: "Arial", size: 12, color: "#17181C", bold: true, line_height: 1.15 },
+      font: { family: "Inter", size: 12, color: "#17181C", bold: true, line_height: 1.15 },
       decorative: false,
       name: `callout_${index}_note`,
     },
@@ -242,14 +242,17 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
   };
 
   return (
-    <main className="flex h-screen min-h-[720px] flex-col overflow-hidden bg-[#111216] text-white">
-      <header className="flex h-16 shrink-0 items-center justify-between border-b border-white/10 px-5">
-        <div className="flex items-center gap-4">
-          <span className="text-sm font-bold tracking-[0.18em] text-[#8D88FF]">VIZCOM</span>
-          <div className="h-5 w-px bg-white/15" />
+    <main
+      className="flex h-screen min-h-[720px] flex-col overflow-hidden bg-[#111214] text-white"
+      style={{ fontFamily: "var(--font-inter), Inter, -apple-system, BlinkMacSystemFont, sans-serif" }}
+    >
+      <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/[0.08] px-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="shrink-0 text-[11px] font-semibold tracking-[0.16em] text-[#8D88FF]">VIZCOM DOCS</span>
+          <div className="h-4 w-px bg-white/10" />
           <div>
-            <h1 className="text-sm font-semibold">{workingDocument.title}</h1>
-            <p className="text-[11px] text-white/45">
+            <h1 className="truncate text-[13px] font-medium">{workingDocument.title}</h1>
+            <p className="truncate text-[10px] text-white/40">
               {workingDocument.sourceSection
                 ? `${workingDocument.sourceSection.title} · ${workingDocument.sourceSection.assets.length + 1} linked workbench items`
                 : "Tech Pack"} · {savedAt}
@@ -257,26 +260,14 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <label className="flex h-9 items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs text-white/65">
-            <span className="text-white/35">Create from template</span>
-            <select
-              aria-label="Create from template"
-              value={templateId}
-              disabled={viewMode === "static"}
-              onChange={(event) => chooseTemplate(event.target.value as TechPackTemplateId)}
-              className="bg-transparent font-semibold text-white outline-none"
-            >
-              {TECH_PACK_TEMPLATES.map((template) => <option key={template.id} value={template.id} className="bg-[#202126]">{template.label}</option>)}
-            </select>
-          </label>
-          <button disabled={viewMode === "static"} className="flex h-9 items-center gap-2 rounded-lg border border-white/10 px-3 text-xs text-white/70 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-35" type="button" onClick={addCallout}>
+          <button disabled={viewMode === "static"} className="flex h-8 items-center gap-2 rounded-md border border-white/10 px-2.5 text-[11px] text-white/65 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-35" type="button" onClick={addCallout}>
             <MessageSquarePlus className="h-4 w-4" /> Add callout
           </button>
           <div className="relative">
             <button
               disabled={viewMode === "static"}
               aria-expanded={sectionPickerOpen}
-              className="flex h-9 items-center gap-2 rounded-lg border border-white/10 px-3 text-xs text-white/70 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-35"
+              className="flex h-8 items-center gap-2 rounded-md border border-white/10 px-2.5 text-[11px] text-white/65 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-35"
               type="button"
               onClick={() => setSectionPickerOpen((open) => !open)}
             >
@@ -302,39 +293,41 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
               </div>
             )}
           </div>
-          <button className="flex h-9 items-center gap-2 rounded-lg bg-[#5B55F7] px-3 text-xs font-semibold hover:bg-[#6B65FF]" type="button" onClick={openPrintView}>
+          <button className="flex h-8 items-center gap-2 rounded-md bg-[#5B55F7] px-3 text-[11px] font-medium hover:bg-[#6B65FF]" type="button" onClick={openPrintView}>
             <Download className="h-4 w-4" /> Print / PDF
           </button>
         </div>
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <aside className="block w-64 shrink-0 overflow-y-auto border-r border-white/10 bg-[#17181D] p-4">
-          <div className="mb-4 rounded-xl border border-[#6962FF]/50 bg-[#6962FF]/10 p-3">
+        <aside className="block w-60 shrink-0 overflow-y-auto border-r border-white/[0.08] bg-[#17181B] p-3">
+          <div className="mb-3 rounded-lg border border-white/[0.08] bg-white/[0.025] p-3">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[9px] font-bold uppercase tracking-[0.13em] text-[#9D98FF]">Tech Pack Section</span>
-              <span className="rounded-full bg-[#6962FF]/25 px-2 py-0.5 text-[9px] font-semibold text-[#B9B6FF]">Live</span>
+              <span className="text-[10px] font-medium text-white/75">Vizcom source</span>
+              <span className="flex items-center gap-1 text-[9px] text-[#9D98FF]"><span className="h-1.5 w-1.5 rounded-full bg-[#6962FF]" />Live</span>
             </div>
-            <p className="mt-2 truncate text-xs font-semibold text-white/90">
+            <p className="mt-1.5 truncate text-[11px] text-white/85">
               {workingDocument.sourceSection?.title ?? workingDocument.title}
             </p>
-            <div className="mt-2 grid grid-cols-2 gap-1.5 text-[9px] text-white/55">
-              <span className="rounded-md bg-black/20 px-2 py-1.5">1 Region Map</span>
-              <span className="rounded-md bg-black/20 px-2 py-1.5">{supportingImageCount} images</span>
-              <span className="col-span-2 rounded-md bg-black/20 px-2 py-1.5">{supportingItemCount} supporting items total</span>
-            </div>
-            <p className="mt-2 text-[9px] leading-4 text-white/40">
-              Add or remove source items in this Vizcom Section. Region edits and Section contents regenerate the linked pages.
-            </p>
-            <div className="mt-2 flex items-center gap-1 text-[9px] font-semibold text-white/55">
-              <span className="text-[#9D98FF]">Source</span><span>→</span><span>Regions</span><span>→</span><span>Pages</span><span>→</span><span>PDF</span>
-            </div>
+            <p className="mt-1 text-[9px] text-white/40">1 Region Map · {supportingImageCount} images · {supportingItemCount} linked items</p>
           </div>
+          <label className="mb-3 flex h-8 items-center justify-between rounded-md border border-white/[0.08] bg-white/[0.025] px-2.5 text-[10px] text-white/40">
+            <span>Template</span>
+            <select
+              aria-label="Create from template"
+              value={templateId}
+              disabled={viewMode === "static"}
+              onChange={(event) => chooseTemplate(event.target.value as TechPackTemplateId)}
+              className="max-w-[130px] bg-transparent text-right text-[10px] font-medium text-white/70 outline-none"
+            >
+              {TECH_PACK_TEMPLATES.map((template) => <option key={template.id} value={template.id} className="bg-[#202126]">{template.label}</option>)}
+            </select>
+          </label>
           <div className="mb-3 flex items-center justify-between">
             <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/40">Pages</span>
             <span className="text-[11px] text-white/30">{pages.length}</span>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-2">
             {numberedPages.map((page, index) => (
               <article
                 key={page.id}
@@ -343,7 +336,7 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
                 onDragEnd={() => setDraggedPageId(null)}
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={() => reorderPage(page.id)}
-                className={`w-full rounded-xl border p-2 text-left transition ${page.id === activePage.id ? "border-[#6962FF] bg-[#25252D]" : "border-white/8 bg-[#1D1E23] hover:border-white/20"} ${draggedPageId === page.id ? "opacity-45" : ""}`}
+                className={`w-full rounded-lg border p-2 text-left transition ${page.id === activePage.id ? "border-[#6962FF] bg-[#222228]" : "border-white/[0.07] bg-transparent hover:border-white/15"} ${draggedPageId === page.id ? "opacity-45" : ""}`}
               >
                 <button type="button" onClick={() => setActivePageId(page.id)} className="block w-full text-left">
                   <div className="overflow-hidden rounded-md bg-white" style={{ aspectRatio: `${TECH_PACK_PAGE_SIZE.width}/${TECH_PACK_PAGE_SIZE.height}` }}>
@@ -379,10 +372,8 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
           </div>
         </aside>
 
-        <section ref={canvasContainerRef} className="relative block min-w-0 flex-1 overflow-auto bg-[#202126]">
-          <div className="sticky top-0 z-20 flex h-11 items-center justify-center gap-3 border-b border-white/10 bg-[#18191D]/95 text-xs text-white/50 backdrop-blur">
-            <span>17 × 11 in landscape</span>
-            <span>·</span>
+        <section ref={canvasContainerRef} className="relative block min-w-0 flex-1 overflow-auto bg-[#202125]">
+          <div className="sticky top-0 z-20 flex h-10 items-center justify-center border-b border-white/[0.07] bg-[#18191C]/95 text-[10px] text-white/45 backdrop-blur">
             <div className="flex rounded-md border border-white/10 bg-black/20 p-0.5">
               <button
                 type="button"
@@ -407,10 +398,9 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
                 Static preview
               </button>
             </div>
-            <span>·</span>
-            <span>{Math.round(displayScale * 100)}%</span>
+            <span className="absolute right-4">{Math.round(displayScale * 100)}%</span>
           </div>
-          <div className="flex min-h-[calc(100%-44px)] items-start justify-center p-10">
+          <div className="flex min-h-[calc(100%-40px)] items-start justify-center p-7">
             <div
               className="relative shrink-0 overflow-visible bg-white shadow-[0_24px_80px_rgba(0,0,0,0.35)]"
               style={{ width: TECH_PACK_PAGE_SIZE.width * displayScale, height: TECH_PACK_PAGE_SIZE.height * displayScale }}
