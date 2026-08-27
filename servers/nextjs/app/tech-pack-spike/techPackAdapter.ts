@@ -48,10 +48,11 @@ const pageHeight = 792;
 const ink = "#202126";
 const muted = "#747780";
 const violet = "#615CF6";
-const violetSoft = "#F3F2FF";
 const rule = "#E0E1E6";
 const surface = "#F7F7F9";
-const paper = "#FFFFFF";
+const chrome = "#1B1C20";
+const chromeMuted = "#A7A9B1";
+const paper = "#FCFCFD";
 
 function text(
   value: string,
@@ -151,6 +152,8 @@ function automaticCallouts(
       const lineEndX = isLeft ? labelX + labelWidth : labelX;
       const partIndex = parts.findIndex((candidate) => candidate.id === part.id) + 1;
       return [
+        rect(labelX, labelY - 17, labelWidth, 42, surface),
+        rect(isLeft ? labelX + labelWidth - 3 : labelX, labelY - 17, 3, 42, violet),
         {
           type: "vector" as const,
           points: [
@@ -159,21 +162,21 @@ function automaticCallouts(
             { x: lineEndX, y: labelY + 5 },
           ],
           closed: false,
-          stroke: { color: "#B5B7BE", opacity: 1, width: 1 },
+          stroke: { color: violet, opacity: 0.7, width: 1.15 },
         },
-        ellipse(sourceX - 11, sourceY - 11, 22, 22, paper, violet),
+        ellipse(sourceX - 11, sourceY - 11, 22, 22, violet, paper),
         text(String(partIndex).padStart(2, "0"), sourceX - 11, sourceY - 5, 22, 13, 7, {
           bold: true,
-          color: violet,
+          color: paper,
           align: "center",
           name: `callout_${part.id}_badge`,
         }),
-        text(`${String(partIndex).padStart(2, "0")}  ${part.name}`, labelX, labelY - 8, labelWidth, 13, 7, {
+        text(`${String(partIndex).padStart(2, "0")}  ${part.name}`, labelX + 9, labelY - 9, labelWidth - 18, 13, 7, {
           bold: true,
           align: isLeft ? "right" : "left",
           name: `callout_${part.id}_label`,
         }),
-        text(`${part.material} · ${part.colorName}`, labelX, labelY + 8, labelWidth, 16, 6, {
+        text(`${part.material} · ${part.colorName}`, labelX + 9, labelY + 7, labelWidth - 18, 16, 6, {
           color: muted,
           align: isLeft ? "right" : "left",
           name: `callout_${part.id}_detail`,
@@ -190,8 +193,9 @@ function automaticCallouts(
 function pendingView(x: number, y: number, width: number, height: number, label: string): SlideElement[] {
   return [
     rect(x, y, width, height, surface),
+    rect(x, y, 3, height, violet),
     text(label, x + 14, y + 13, width - 28, 16, 8, { bold: true, color: ink }),
-    text("View pending", x + 14, y + height / 2 - 6, width - 28, 18, 9, {
+    text("Add view", x + 14, y + height / 2 - 6, width - 28, 18, 9, {
       color: muted,
       align: "center",
       name: `${label.toLowerCase()}_pending`,
@@ -201,13 +205,14 @@ function pendingView(x: number, y: number, width: number, height: number, label:
 
 function documentHeader(document: TechPackDocument, page: number, pageCount: number): SlideElement[] {
   const elements: SlideElement[] = [
-    rect(32, 24, 72, 32, ink),
-    text("VIZCOM", 41, 34, 54, 13, 10, { bold: true, color: "#FFFFFF" }),
-    text(document.title, 122, 29, 520, 16, 11, { bold: true, name: "document_title" }),
-    text(`Style ${document.styleNumber}`, 122, 47, 320, 10, 7, { color: muted }),
-    text(document.header.currentDate, 896, 31, 170, 14, 7, { color: muted, align: "right" }),
-    text(`PAGE ${page} / ${pageCount}`, 1080, 31, 112, 14, 7, { bold: true, align: "right" }),
-    line(32, 68, 1192, 68, rule),
+    rect(32, 20, 1160, 48, chrome),
+    text("VIZCOM", 48, 35, 58, 13, 10, { bold: true, color: paper }),
+    rect(116, 34, 3, 16, violet),
+    text("DOCS", 130, 36, 44, 11, 7, { bold: true, color: "#9E9AFF" }),
+    text(document.title, 194, 28, 500, 16, 11, { bold: true, color: paper, name: "document_title" }),
+    text(`Style ${document.styleNumber}`, 194, 47, 300, 10, 7, { color: chromeMuted }),
+    text(document.header.currentDate, 880, 34, 170, 14, 7, { color: chromeMuted, align: "right" }),
+    text(`PAGE ${page} / ${pageCount}`, 1064, 34, 112, 14, 7, { bold: true, color: paper, align: "right" }),
   ];
   return elements;
 }
@@ -228,17 +233,18 @@ function componentTable(
     return positions;
   }, [x]);
   const elements: SlideElement[] = [
-    rect(x, startY, 1160, headerHeight, surface),
+    rect(x, startY, 1160, headerHeight, chrome),
     line(x, startY + headerHeight, x + 1160, startY + headerHeight, rule),
   ];
   labels.forEach((label, index) => {
     elements.push(text(label, columnX[index] + 8, startY + 8, widths[index] - 16, 11, 7, {
       bold: true,
-      color: muted,
+      color: chromeMuted,
     }));
   });
   parts.forEach((part, index) => {
     const rowY = startY + headerHeight + index * rowHeight;
+    if (index % 2 === 1) elements.push(rect(x, rowY, 1160, rowHeight, surface));
     if (index > 0) elements.push(line(x, rowY, x + 1160, rowY, rule));
     elements.push(text(String(startIndex + index + 1).padStart(2, "0"), x + 8, rowY + 6, widths[0] - 16, 10, 7, {
       bold: true,
@@ -306,18 +312,22 @@ function mainSpecificationPage(document: TechPackDocument): TechPackEditorPage {
     sourceManaged: true,
     layout: layout("tech-pack-upper-specification", "Region Map-backed upper specification", [
       ...documentHeader(document, 1, 1),
-      text("UPPER SPECIFICATION", 32, 84, 260, 20, 11, { bold: true, color: violet }),
+      rect(32, 84, 4, 18, violet),
+      text("UPPER SPECIFICATION", 46, 85, 260, 20, 11, { bold: true, color: ink }),
       text("Region map · Materials", 815, 86, 377, 16, 8, { color: muted, align: "right" }),
       line(32, 108, 1192, 108, rule),
+      rect(176, 120, 596, 310, surface),
       image(primary.imageUrl ?? document.primarySource.imageUrl, primaryImageRect.x, primaryImageRect.y, primaryImageRect.width, primaryImageRect.height, "primary_lateral_view"),
       ...automaticCallouts(document.parts, primaryImageRect),
       text("Selected primary design · Lateral", 188, 436, 572, 16, 7, { color: muted, align: "center" }),
       ...(top?.imageUrl ? [image(top.imageUrl, 932, 124, 116, 142, "top_view")] : pendingView(932, 124, 116, 142, "Top")),
       ...(heel?.imageUrl ? [image(heel.imageUrl, 1062, 124, 130, 142, "heel_view")] : pendingView(1062, 124, 130, 142, "Heel")),
-      rect(932, 280, 260, 144, violetSoft),
-      text("DESIGN INTENT", 948, 296, 150, 14, 8, { bold: true, color: violet }),
-      text(document.intent, 948, 320, 228, 88, 9, { name: "design_intent" }),
-      text("COMPONENT SPECIFICATIONS", 32, 462, 470, 14, 8, { bold: true, color: ink }),
+      rect(932, 280, 260, 144, chrome),
+      rect(932, 280, 4, 144, violet),
+      text("DESIGN INTENT", 952, 298, 150, 14, 8, { bold: true, color: "#9E9AFF" }),
+      text(document.intent, 952, 324, 220, 80, 9, { color: paper, name: "design_intent" }),
+      rect(32, 460, 4, 16, violet),
+      text("COMPONENT SPECIFICATIONS", 46, 462, 470, 14, 8, { bold: true, color: ink }),
       ...componentTable(document, 482, document.parts.slice(0, MAIN_TABLE_ROW_LIMIT)),
     ]),
   };
@@ -346,9 +356,10 @@ function componentContinuationPages(document: TechPackDocument): TechPackEditorP
         "Continued Region Map component specification table",
         [
           ...documentHeader(document, 1, 1),
-          text("COMPONENT SPECIFICATIONS · CONTINUED", 32, 84, 600, 20, 11, {
+          rect(32, 84, 4, 18, violet),
+          text("COMPONENT SPECIFICATIONS · CONTINUED", 46, 85, 600, 20, 11, {
             bold: true,
-            color: violet,
+            color: ink,
           }),
           text(
             `${String(startIndex + 1).padStart(2, "0")}–${String(endIndex).padStart(2, "0")} OF ${document.parts.length}`,
@@ -378,17 +389,19 @@ function detailPage(document: TechPackDocument): TechPackEditorPage {
     sourceManaged: true,
     layout: layout("tech-pack-graphic-sole-details", "Optional graphic, cross-section, and sole detail page", [
       ...documentHeader(document, 2, 2),
-      text("GRAPHIC DETAILS", 42, 86, 520, 20, 12, { bold: true, color: violet }),
-      text("SOLE UNIT DETAILS", 632, 86, 520, 20, 12, { bold: true, color: violet }),
+      rect(42, 86, 4, 18, violet),
+      text("GRAPHIC DETAILS", 56, 87, 506, 20, 12, { bold: true, color: ink }),
+      rect(632, 86, 4, 18, violet),
+      text("SOLE UNIT DETAILS", 646, 87, 506, 20, 12, { bold: true, color: ink }),
       line(612, 86, 612, 746, rule), line(42, 113, 582, 113, rule), line(632, 113, 1182, 113, rule),
       rect(42, 130, 540, 250, surface),
       text("DROP A GRAPHIC OR CROSS-SECTION HERE", 74, 234, 476, 20, 11, { bold: true, color: muted, align: "center" }),
       ...(top?.imageUrl ? [image(top.imageUrl, 652, 130, 250, 250, "sole_top_view")] : pendingView(652, 130, 250, 250, "Outsole / top")),
       ...(heel?.imageUrl ? [image(heel.imageUrl, 922, 130, 240, 250, "heel_detail_view")] : pendingView(922, 130, 240, 250, "Heel")),
-      text("CONSTRUCTION + REVIEW NOTES", 42, 416, 410, 18, 10, { bold: true, color: violet }),
+      text("CONSTRUCTION + REVIEW NOTES", 42, 416, 410, 18, 10, { bold: true, color: ink }),
       rect(42, 443, 540, 290, surface),
       text(document.constructionNotes.map((note, index) => `${index + 1}. ${note}`).join("\n\n"), 62, 463, 500, 240, 10, { name: "construction_notes" }),
-      text("COLOR SWATCHES", 632, 416, 250, 18, 10, { bold: true, color: violet }),
+      text("COLOR SWATCHES", 632, 416, 250, 18, 10, { bold: true, color: ink }),
       ...colorSwatchTable(document, 443),
     ]),
   };
@@ -407,10 +420,10 @@ function sourceSectionPages(document: TechPackDocument): TechPackEditorPage[] {
         ),
       )
     : [[]];
-  const cardWidth = 360;
-  const cardHeight = 158;
-
   return imageChunks.map((imageAssets, pageIndex) => {
+    const singleImage = imageAssets.length === 1;
+    const cardWidth = singleImage ? 736 : 360;
+    const cardHeight = singleImage ? 360 : 158;
     const imageElements = imageAssets.flatMap((asset, index) => {
       const column = index % 2;
       const row = Math.floor(index / 2);
@@ -445,21 +458,23 @@ function sourceSectionPages(document: TechPackDocument): TechPackEditorPage[] {
         "Supporting content synced from a Vizcom Section",
         [
           ...documentHeader(document, 1, 1),
-          text(`VIZCOM TECH PACK SECTION${pageIndex === 0 ? "" : " · CONTINUED"}`, 32, 84, 520, 20, 11, { bold: true, color: violet }),
+          rect(32, 84, 4, 18, violet),
+          text(`VIZCOM TECH PACK SECTION${pageIndex === 0 ? "" : " · CONTINUED"}`, 46, 85, 520, 20, 11, { bold: true, color: ink }),
           text(sourceSection.title.toUpperCase(), 676, 86, 516, 16, 8, { color: muted, align: "right" }),
           line(32, 108, 1192, 108, rule),
-          text("SUPPORTING IMAGES", 32, 124, 736, 14, 8, { bold: true, color: ink }),
+          text("SUPPORTING IMAGES", 32, 124, 736, 14, 8, { bold: true, color: muted }),
           ...(imageElements.length > 0
             ? imageElements
             : pendingView(32, 146, 736, 508, "Drag images into this Vizcom Section")),
-          rect(784, 146, 408, 508, surface),
-          text(pageIndex === 0 ? "LINKED WORKBENCH ITEMS" : "ITEMS ON THIS PAGE", 806, 168, 364, 16, 8, { bold: true, color: violet }),
-          text(sourceList.join("\n\n") || "No supporting items yet.", 806, 202, 364, 250, 9, { name: `source_section_assets_${pageIndex + 1}` }),
+          rect(784, 146, 408, 508, chrome),
+          rect(784, 146, 4, 508, violet),
+          text(pageIndex === 0 ? "LINKED WORKBENCH ITEMS" : "ITEMS ON THIS PAGE", 806, 168, 364, 16, 8, { bold: true, color: "#9E9AFF" }),
+          text(sourceList.join("\n\n") || "No supporting items yet.", 806, 202, 364, 250, 9, { color: paper, name: `source_section_assets_${pageIndex + 1}` }),
           ...(pageIndex === 0 && textAssets.length > 0
             ? [
-                line(806, 472, 1170, 472, rule),
-                text("NOTES", 806, 490, 364, 14, 8, { bold: true, color: violet }),
-                text(textAssets.map((asset) => asset.text).join("\n\n"), 806, 520, 364, 108, 9, { name: "source_section_notes" }),
+                line(806, 472, 1170, 472, "#3A3C43"),
+                text("NOTES", 806, 490, 364, 14, 8, { bold: true, color: "#9E9AFF" }),
+                text(textAssets.map((asset) => asset.text).join("\n\n"), 806, 520, 364, 108, 9, { color: paper, name: "source_section_notes" }),
               ]
             : []),
           text("Synced from the selected Vizcom Docs Section", 32, 684, 736, 14, 7, { color: muted }),
@@ -481,7 +496,8 @@ export function techPackToEditorPages(document: TechPackDocument, templateId: Te
 function sectionHeader(document: TechPackDocument, title: string): SlideElement[] {
   return [
     ...documentHeader(document, 1, 1),
-    text(title.toUpperCase(), 32, 84, 620, 20, 11, { bold: true, color: violet }),
+    rect(32, 84, 4, 18, violet),
+    text(title.toUpperCase(), 46, 85, 606, 20, 11, { bold: true, color: ink }),
     line(32, 108, 1192, 108, rule),
   ];
 }
@@ -494,9 +510,10 @@ function regionMapSection(document: TechPackDocument): TemplateV2Layout {
     image(primary.imageUrl ?? document.primarySource.imageUrl, imageRect.x, imageRect.y, imageRect.width, imageRect.height, "region_map_primary"),
     ...automaticCallouts(document.parts, imageRect),
     text("Live Vizcom Regions · Edit names, colors, materials, and masks on the workbench", 224, 606, 776, 16, 7, { color: muted, align: "center" }),
-    rect(224, 644, 776, 78, violetSoft),
-    text("DESIGN INTENT", 244, 660, 140, 14, 8, { bold: true, color: violet }),
-    text(document.intent, 390, 658, 586, 44, 9, { name: "region_map_intent" }),
+    rect(224, 644, 776, 78, chrome),
+    rect(224, 644, 4, 78, violet),
+    text("DESIGN INTENT", 244, 660, 140, 14, 8, { bold: true, color: "#9E9AFF" }),
+    text(document.intent, 390, 658, 586, 44, 9, { color: paper, name: "region_map_intent" }),
   ]);
 }
 
@@ -529,16 +546,17 @@ function constructionNotesSection(document: TechPackDocument): TemplateV2Layout 
   return layout("tech-pack-section-construction-notes", "Construction and review notes", [
     ...sectionHeader(document, "Construction notes"),
     rect(32, 134, 718, 590, surface),
-    text("ASSEMBLY + REVIEW", 54, 158, 670, 18, 9, { bold: true, color: violet }),
+    rect(32, 134, 4, 590, violet),
+    text("ASSEMBLY + REVIEW", 54, 158, 670, 18, 9, { bold: true, color: ink }),
     text(document.constructionNotes.map((note, index) => `${String(index + 1).padStart(2, "0")}   ${note}`).join("\n\n"), 54, 198, 670, 470, 13, { name: "construction_notes_section" }),
-    rect(782, 134, 410, 590, surface),
-    text("COMPONENT REFERENCE", 806, 158, 362, 18, 9, { bold: true, color: violet }),
+    rect(782, 134, 410, 590, chrome),
+    text("COMPONENT REFERENCE", 806, 158, 362, 18, 9, { bold: true, color: "#9E9AFF" }),
     ...document.parts.flatMap((part, index) => {
       const y = 204 + index * Math.min(92, 448 / Math.max(1, document.parts.length));
       return [
         rect(806, y, 18, 18, part.colorHex, "#BFC1C8"),
-        text(`${String(index + 1).padStart(2, "0")}  ${part.name}`, 836, y, 320, 15, 9, { bold: true }),
-        text(`${part.material} · ${part.finish}`, 836, y + 22, 320, 28, 7, { color: muted }),
+        text(`${String(index + 1).padStart(2, "0")}  ${part.name}`, 836, y, 320, 15, 9, { bold: true, color: paper }),
+        text(`${part.material} · ${part.finish}`, 836, y + 22, 320, 28, 7, { color: chromeMuted }),
       ];
     }),
   ]);
@@ -548,7 +566,8 @@ function coverSection(document: TechPackDocument): TemplateV2Layout {
   const primary = document.views.find((view) => view.label === "Primary") ?? document.views[0];
   return layout("tech-pack-section-cover", "Tech Pack cover", [
     rect(0, 0, pageWidth, pageHeight, surface),
-    rect(0, 0, 304, pageHeight, ink),
+    rect(0, 0, 304, pageHeight, chrome),
+    rect(304, 0, 6, pageHeight, violet),
     text("VIZCOM", 54, 54, 190, 24, 18, { bold: true, color: "#FFFFFF" }),
     text("TECH PACK", 54, 88, 190, 16, 9, { bold: true, color: "#AAA7FF" }),
     text(document.title, 54, 246, 210, 120, 28, { bold: true, color: "#FFFFFF", name: "cover_title" }),
@@ -562,7 +581,8 @@ function coverSection(document: TechPackDocument): TemplateV2Layout {
 function blankSection(): TemplateV2Layout {
   return layout("tech-pack-section-blank", "Blank editable Tech Pack section", [
     rect(0, 0, pageWidth, pageHeight, paper),
-    text("CUSTOM SECTION", 48, 44, 300, 20, 10, { bold: true, color: violet }),
+    rect(48, 44, 4, 18, violet),
+    text("CUSTOM SECTION", 62, 45, 286, 20, 10, { bold: true, color: ink }),
     line(48, 78, 1176, 78, rule),
   ]);
 }

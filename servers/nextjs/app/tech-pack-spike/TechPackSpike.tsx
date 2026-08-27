@@ -33,43 +33,77 @@ import {
 import type { TechPackDocument } from "./techPackModel";
 
 function newCalloutElements(index: number): SlideElement[] {
-  const markerX = 520;
-  const markerY = 236;
+  const markerX = 690;
+  const markerY = 248;
+  const markerSize = 24;
+  const cardX = 776;
+  const cardY = markerY - 13;
+  const cardWidth = 140;
+  const cardHeight = 50;
   return [
     {
       type: "vector",
       shape: "ellipse",
       points: [
-        { x: markerX, y: markerY }, { x: markerX + 32, y: markerY },
-        { x: markerX + 32, y: markerY + 32 }, { x: markerX, y: markerY + 32 },
+        { x: markerX, y: markerY }, { x: markerX + markerSize, y: markerY },
+        { x: markerX + markerSize, y: markerY + markerSize }, { x: markerX, y: markerY + markerSize },
       ],
       closed: true,
-      fill: { color: "#5B55F7", opacity: 1 },
-      stroke: { color: "#FFFFFF", opacity: 1, width: 2 },
+      fill: { color: "#615CF6", opacity: 1 },
+      stroke: { color: "#FCFCFD", opacity: 1, width: 1.5 },
     },
     {
       type: "text",
       position: { x: markerX, y: markerY + 5 },
-      size: { width: 32, height: 22 },
+      size: { width: markerSize, height: 14 },
       alignment: { horizontal: "center", vertical: "top" },
-      runs: [{ text: String(index) }],
-      font: { family: "Inter", size: 13, color: "#FFFFFF", bold: true, line_height: 1 },
+      runs: [{ text: String(index).padStart(2, "0") }],
+      font: { family: "Inter", size: 7, color: "#FFFFFF", bold: true, line_height: 1 },
       decorative: false,
       name: `callout_${index}_number`,
     },
     {
       type: "vector",
-      points: [{ x: markerX + 32, y: markerY + 16 }, { x: markerX + 116, y: markerY + 16 }],
+      points: [
+        { x: markerX + markerSize, y: markerY + markerSize / 2 },
+        { x: cardX, y: markerY + markerSize / 2 },
+      ],
       closed: false,
-      stroke: { color: "#5B55F7", opacity: 1, width: 2 },
+      stroke: { color: "#615CF6", opacity: 0.75, width: 1.25 },
+    },
+    {
+      type: "vector",
+      shape: "polygon",
+      points: [
+        { x: cardX, y: cardY },
+        { x: cardX + cardWidth, y: cardY },
+        { x: cardX + cardWidth, y: cardY + cardHeight },
+        { x: cardX, y: cardY + cardHeight },
+      ],
+      closed: true,
+      fill: { color: "#1B1C20", opacity: 1 },
+      stroke: null,
+    },
+    {
+      type: "vector",
+      shape: "polygon",
+      points: [
+        { x: cardX, y: cardY },
+        { x: cardX + 4, y: cardY },
+        { x: cardX + 4, y: cardY + cardHeight },
+        { x: cardX, y: cardY + cardHeight },
+      ],
+      closed: true,
+      fill: { color: "#615CF6", opacity: 1 },
+      stroke: null,
     },
     {
       type: "text",
-      position: { x: markerX + 126, y: markerY - 1 },
-      size: { width: 260, height: 54 },
+      position: { x: cardX + 12, y: cardY + 8 },
+      size: { width: cardWidth - 24, height: 36 },
       alignment: { horizontal: "left", vertical: "top" },
       runs: [{ text: "Describe the construction or manufacturing requirement" }],
-      font: { family: "Inter", size: 12, color: "#17181C", bold: true, line_height: 1.15 },
+      font: { family: "Inter", size: 7, color: "#FCFCFD", bold: true, line_height: 1.15 },
       decorative: false,
       name: `callout_${index}_note`,
     },
