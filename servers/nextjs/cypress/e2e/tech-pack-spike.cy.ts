@@ -6,8 +6,8 @@ describe("Vizcom Tech Pack editor spike", () => {
     cy.contains("Upper specification").should("be.visible");
     cy.contains("Runner Tech Pack Sources").should("be.visible");
     cy.contains("button", "Annotate").should("have.attr", "aria-pressed", "true");
-    cy.contains("button", "Layout locked").click();
-    cy.contains("button", "Editing content").should("have.attr", "aria-pressed", "true");
+    cy.contains("button", "Edit content").click();
+    cy.contains("button", "Done").should("have.attr", "aria-pressed", "true");
     cy.contains("All Regions").should("not.exist");
     cy.get("svg[aria-label='Interactive Region Map']").should("not.exist");
 
@@ -57,7 +57,7 @@ describe("Vizcom Tech Pack editor spike", () => {
 
   it("renders the same ordered section document in print mode", () => {
     cy.visit("/tech-pack-spike");
-    cy.contains("button", "Layout locked").click();
+    cy.contains("button", "Edit content").click();
     cy.contains("button", "Add page").click();
     cy.contains("button", "Construction notes").click();
     cy.get('[aria-label="Rename Construction notes"]').click();

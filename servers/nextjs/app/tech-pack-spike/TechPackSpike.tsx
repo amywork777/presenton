@@ -8,7 +8,6 @@ import {
   FilePlus2,
   GripVertical,
   ImagePlus,
-  Lock,
   MessageSquarePlus,
   Minus,
   Pencil,
@@ -35,7 +34,7 @@ import {
   type TechPackSectionType,
   type TechPackTemplateId,
 } from "./techPackAdapter";
-import type { TechPackDocument } from "./techPackModel";
+import type { TechPackDocument, TechPackSourceAsset } from "./techPackModel";
 
 function newCalloutElements(index: number): SlideElement[] {
   const markerX = 690;
@@ -126,6 +125,12 @@ function newImageElement(data: string, index: number): SlideElement {
     decorative: false,
     name: `user_image_${index}`,
   };
+}
+
+function sourceKindLabel(kind: TechPackSourceAsset["kind"]) {
+  if (kind === "3d") return "3D";
+  if (kind === "color-swatch") return "Color";
+  return kind.replace("-", " ");
 }
 
 export function TechPackSpike({ document }: { document: TechPackDocument }) {
@@ -353,8 +358,8 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
               setLayoutLocked((locked) => !locked);
             }}
           >
-            {layoutLocked ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
-            {layoutLocked ? "Layout locked" : "Editing content"}
+            {layoutLocked ? <Unlock className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}
+            {layoutLocked ? "Edit content" : "Done"}
           </button>
           <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={insertImage} />
           <button disabled={!canEdit} className="flex h-8 items-center gap-2 rounded-md border border-white/10 px-2.5 text-[11px] text-white/65 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-35" type="button" onClick={() => imageInputRef.current?.click()}>
@@ -394,7 +399,7 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
             )}
           </div>
           <button className="flex h-8 items-center gap-2 rounded-md bg-[#5B55F7] px-3 text-[11px] font-medium hover:bg-[#6B65FF]" type="button" onClick={openPrintView}>
-            <Download className="h-4 w-4" /> Print / PDF
+            <Download className="h-4 w-4" /> Export PDF / PLM
           </button>
         </div>
       </header>
@@ -409,8 +414,40 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
             <p className="mt-1.5 truncate text-[11px] text-white/85">
               {workingDocument.sourceSection?.title ?? workingDocument.title}
             </p>
-            <p className="mt-1 text-[9px] text-white/40">1 Region Map · {supportingImageCount} images · {supportingItemCount} linked items</p>
+            <p className="mt-1 text-[9px] text-white/40">
+              {workingDocument.parts.length ? "Region Map + BOM" : "Primary design"} · {supportingImageCount} previews · {supportingItemCount} linked items
+            </p>
           </div>
+          {workingDocument.sourceSection?.assets.length ? (
+            <details className="mb-3 rounded-lg border border-white/[0.08] bg-white/[0.02] text-[10px]">
+              <summary className="cursor-pointer list-none px-3 py-2.5 font-medium text-white/65">
+                Final assets <span className="ml-1 text-white/30">{workingDocument.sourceSection.assets.length}</span>
+              </summary>
+              <div className="max-h-40 space-y-1 overflow-y-auto border-t border-white/[0.07] p-2">
+                {workingDocument.sourceSection.assets.map((asset) => {
+                  const href = asset.mediaUrl ?? asset.imageUrl;
+                  const content = (
+                    <>
+                      <span className="min-w-0 flex-1 truncate text-white/65">{asset.title}</span>
+                      <span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[8px] uppercase tracking-wide text-[#9D98FF]">
+                        {sourceKindLabel(asset.kind)}
+                      </span>
+                      {href ? <span className="text-white/30">↗</span> : null}
+                    </>
+                  );
+                  return href ? (
+                    <a key={asset.id} href={href} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-white/[0.05]">
+                      {content}
+                    </a>
+                  ) : (
+                    <div key={asset.id} className="flex items-center gap-2 rounded px-2 py-1.5">
+                      {content}
+                    </div>
+                  );
+                })}
+              </div>
+            </details>
+          ) : null}
           <label className="mb-3 flex h-8 items-center justify-between rounded-md border border-white/[0.08] bg-white/[0.025] px-2.5 text-[10px] text-white/40">
             <span>Template</span>
             <select
@@ -499,7 +536,7 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
               </button>
             </div>
             <span className="hidden text-white/35 xl:inline">
-              {layoutLocked ? "Review mode · unlock to edit text, images, and callouts" : "Content editing · page layout unlocked"}
+              {layoutLocked ? "Layout protected · zoom and review" : "Edit text, images, and callouts · choose Done when finished"}
             </span>
             <div className="absolute right-3 flex h-7 items-center rounded-md border border-white/10 bg-black/20">
               <button aria-label="Zoom out" type="button" onClick={() => changeZoom(-0.1)} className="grid h-7 w-7 place-items-center text-white/55 hover:text-white"><Minus className="h-3.5 w-3.5" /></button>

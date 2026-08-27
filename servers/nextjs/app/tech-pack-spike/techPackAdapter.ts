@@ -442,6 +442,10 @@ function sourceSectionPages(document: TechPackDocument): TechPackEditorPage[] {
       const sourceIndex = sourceSection.assets.findIndex((candidate) => candidate.id === asset.id);
       const detail = asset.kind === "image"
         ? "Image"
+        : asset.kind === "video"
+          ? "Video · interactive source"
+          : asset.kind === "3d"
+            ? "3D · interactive source"
         : asset.kind === "color-swatch"
           ? `${asset.colors?.length ?? 0} colors`
           : asset.kind.replace("-", " ");
@@ -462,7 +466,7 @@ function sourceSectionPages(document: TechPackDocument): TechPackEditorPage[] {
           text(`VIZCOM TECH PACK SECTION${pageIndex === 0 ? "" : " · CONTINUED"}`, 46, 85, 520, 20, 11, { bold: true, color: ink }),
           text(sourceSection.title.toUpperCase(), 676, 86, 516, 16, 8, { color: muted, align: "right" }),
           line(32, 108, 1192, 108, rule),
-          text("SUPPORTING IMAGES", 32, 124, 736, 14, 8, { bold: true, color: muted }),
+          text("SUPPORTING ASSETS", 32, 124, 736, 14, 8, { bold: true, color: muted }),
           ...(imageElements.length > 0
             ? imageElements
             : pendingView(32, 146, 736, 508, "Drag images into this Vizcom Section")),
@@ -478,7 +482,7 @@ function sourceSectionPages(document: TechPackDocument): TechPackEditorPage[] {
               ]
             : []),
           text("Synced from the selected Vizcom Docs Section", 32, 684, 736, 14, 7, { color: muted }),
-          text(`${sourceSection.assets.length} linked item${sourceSection.assets.length === 1 ? "" : "s"} · ${allImageAssets.length} image${allImageAssets.length === 1 ? "" : "s"}`, 784, 684, 408, 14, 7, { color: muted, align: "right" }),
+          text(`${sourceSection.assets.length} linked item${sourceSection.assets.length === 1 ? "" : "s"} · ${allImageAssets.length} visual preview${allImageAssets.length === 1 ? "" : "s"}`, 784, 684, 408, 14, 7, { color: muted, align: "right" }),
         ],
       ),
     };

@@ -46,7 +46,7 @@ export type TechPackHeader = {
 
 export type TechPackSourceAsset = {
   id: string;
-  kind: "image" | "video" | "text" | "color-swatch" | "workflow" | "other";
+  kind: "image" | "video" | "3d" | "text" | "color-swatch" | "workflow" | "other";
   title: string;
   sourceElementType: string;
   imageUrl?: string;
@@ -121,6 +121,19 @@ export const techPackExample: TechPackDocument = {
         title: "Runner color palette",
         sourceElementType: "WorkbenchElementColorSwatch",
         colors: ["#A8A8A2", "#3C3C3A", "#E8E5DC", "#171717"],
+      },
+      {
+        id: "video-assembly",
+        kind: "video",
+        title: "Assembly motion study",
+        sourceElementType: "Video",
+      },
+      {
+        id: "scene-runner",
+        kind: "3d",
+        title: "Runner 3D scene",
+        sourceElementType: "CompositeScene",
+        imageUrl: "/tech-pack-assets/real-sneaker-side.png",
       },
     ],
   },
