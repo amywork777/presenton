@@ -36,8 +36,10 @@ export function VizcomTechPackBridge({
   fallback: TechPackDocument;
 }) {
   const [document, setDocument] = useState(fallback);
+  const [embedded, setEmbedded] = useState(false);
 
   useEffect(() => {
+    setEmbedded(window.parent !== window);
     const receive = (event: MessageEvent<unknown>) => {
       const message = event.data as Partial<TechPackOpenMessage> | null;
       if (
@@ -59,6 +61,7 @@ export function VizcomTechPackBridge({
     <TechPackSpike
       key={document.id}
       document={document}
+      embedded={embedded}
       onOpenSource={(elementId) => {
         window.parent.postMessage(
           { type: VIZCOM_DOCS_OPEN_SOURCE, elementId },

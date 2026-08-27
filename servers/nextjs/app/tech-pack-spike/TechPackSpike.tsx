@@ -135,9 +135,11 @@ function sourceKindLabel(kind: TechPackSourceAsset["kind"]) {
 
 export function TechPackSpike({
   document,
+  embedded = false,
   onOpenSource,
 }: {
   document: TechPackDocument;
+  embedded?: boolean;
   onOpenSource?: (elementId: string) => void;
 }) {
   const [workingDocument, setWorkingDocument] = useState(document);
@@ -150,7 +152,6 @@ export function TechPackSpike({
   const [manualScale, setManualScale] = useState<number | null>(null);
   const [layoutLocked, setLayoutLocked] = useState(true);
   const [calloutCount, setCalloutCount] = useState(document.parts.length);
-  const [viewMode, setViewMode] = useState<"document" | "static">("document");
   const [sectionPickerOpen, setSectionPickerOpen] = useState(false);
   const [draggedPageId, setDraggedPageId] = useState<string | null>(null);
   const [renamingPageId, setRenamingPageId] = useState<string | null>(null);
@@ -165,7 +166,7 @@ export function TechPackSpike({
   const supportingImageCount = workingDocument.sourceSection?.assets.filter((asset) => asset.imageUrl).length ?? 0;
   const supportingItemCount = workingDocument.sourceSection?.assets.length ?? 0;
   const displayScale = manualScale ?? fitScale;
-  const canEdit = viewMode === "document" && !layoutLocked;
+  const canEdit = !layoutLocked;
 
   useEffect(() => {
     const container = canvasContainerRef.current;
@@ -338,74 +339,76 @@ export function TechPackSpike({
 
   return (
     <main
-      className="flex h-screen min-h-[720px] flex-col overflow-hidden bg-[#111214] text-white"
+      className="flex h-full min-h-0 flex-col overflow-hidden bg-[#111214] text-white"
       style={{ fontFamily: "var(--font-inter), Inter, -apple-system, BlinkMacSystemFont, sans-serif" }}
     >
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/[0.08] px-4">
+      <header className={`flex shrink-0 items-center justify-between border-b border-white/[0.08] px-4 ${embedded ? "h-11 bg-[#17181B]" : "h-14"}`}>
         <div className="flex min-w-0 items-center gap-3">
-          <span className="shrink-0 text-[11px] font-semibold tracking-[0.16em] text-[#8D88FF]">VIZCOM DOCS</span>
-          <div className="h-4 w-px bg-white/10" />
+          {!embedded && (
+            <>
+              <span className="shrink-0 text-[11px] font-semibold tracking-[0.16em] text-[#8D88FF]">VIZCOM DOCS</span>
+              <div className="h-4 w-px bg-white/10" />
+            </>
+          )}
           <div>
             <h1 className="truncate text-[13px] font-medium">{workingDocument.title}</h1>
-            <p className="truncate text-[10px] text-white/40">
+            {!embedded && <p className="truncate text-[10px] text-white/40">
               {workingDocument.sourceSection
                 ? `${workingDocument.sourceSection.title} · ${workingDocument.sourceSection.assets.length + 1} linked workbench items`
                 : "Tech Pack"} · Interactive document · {savedAt}
-            </p>
+            </p>}
           </div>
+          {embedded && <span className="flex items-center gap-1.5 text-[10px] text-white/35"><span className="h-1.5 w-1.5 rounded-full bg-[#6962FF]" />Live</span>}
         </div>
         <div className="flex items-center gap-2">
+          <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={insertImage} />
+          {canEdit && (
+            <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.025] p-1">
+              <button className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[11px] text-white/60 hover:bg-white/[0.06] hover:text-white" type="button" onClick={() => imageInputRef.current?.click()}>
+                <ImagePlus className="h-3.5 w-3.5" /> Image
+              </button>
+              <button className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[11px] text-white/60 hover:bg-white/[0.06] hover:text-white" type="button" onClick={addCallout}>
+                <MessageSquarePlus className="h-3.5 w-3.5" /> Callout
+              </button>
+              <div className="relative">
+                <button
+                  aria-expanded={sectionPickerOpen}
+                  className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[11px] text-white/60 hover:bg-white/[0.06] hover:text-white"
+                  type="button"
+                  onClick={() => setSectionPickerOpen((open) => !open)}
+                >
+                  <FilePlus2 className="h-3.5 w-3.5" /> Page
+                </button>
+                {sectionPickerOpen && (
+                  <div className="absolute right-0 top-10 z-50 w-[390px] rounded-xl border border-white/10 bg-[#202126] p-3 shadow-2xl">
+                    <div className="mb-2 flex items-center justify-between px-1">
+                      <p className="text-xs font-semibold text-white">Add page</p>
+                      <button aria-label="Close page picker" type="button" onClick={() => setSectionPickerOpen(false)} className="rounded-md p-1 text-white/45 hover:bg-white/5 hover:text-white"><X className="h-4 w-4" /></button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {TECH_PACK_SECTION_OPTIONS.map((option) => (
+                        <button key={option.id} type="button" onClick={() => addPage(option.id)} className="rounded-lg border border-white/8 bg-white/[0.03] p-2.5 text-left hover:border-[#6962FF] hover:bg-[#6962FF]/10">
+                          <span className="block text-xs font-medium text-white/90">{option.label}</span>
+                          <span className="mt-1 block text-[10px] leading-4 text-white/40">{option.description}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           <button
             aria-pressed={!layoutLocked}
-            className={`flex h-8 items-center gap-2 rounded-md border px-2.5 text-[11px] ${layoutLocked ? "border-white/10 text-white/65 hover:bg-white/5" : "border-[#6962FF]/70 bg-[#6962FF]/15 text-white"}`}
+            className={`flex h-8 items-center gap-2 rounded-md px-3 text-[11px] font-medium ${layoutLocked ? "bg-[#5B55F7] text-white hover:bg-[#6B65FF]" : "border border-white/10 text-white/70 hover:bg-white/5"}`}
             type="button"
-            onClick={() => {
-              setViewMode("document");
-              setLayoutLocked((locked) => !locked);
-            }}
+            onClick={() => setLayoutLocked((locked) => !locked)}
           >
             {layoutLocked ? <Unlock className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}
-            {layoutLocked ? "Edit content" : "Done"}
+            {layoutLocked ? "Edit" : "Done"}
           </button>
-          <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={insertImage} />
-          <button disabled={!canEdit} className="flex h-8 items-center gap-2 rounded-md border border-white/10 px-2.5 text-[11px] text-white/65 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-35" type="button" onClick={() => imageInputRef.current?.click()}>
-            <ImagePlus className="h-4 w-4" /> Add image
-          </button>
-          <button disabled={!canEdit} className="flex h-8 items-center gap-2 rounded-md border border-white/10 px-2.5 text-[11px] text-white/65 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-35" type="button" onClick={addCallout}>
-            <MessageSquarePlus className="h-4 w-4" /> Add callout
-          </button>
-          <div className="relative">
-            <button
-              disabled={!canEdit}
-              aria-expanded={sectionPickerOpen}
-              className="flex h-8 items-center gap-2 rounded-md border border-white/10 px-2.5 text-[11px] text-white/65 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-35"
-              type="button"
-              onClick={() => setSectionPickerOpen((open) => !open)}
-            >
-              <FilePlus2 className="h-4 w-4" /> Add page
-            </button>
-            {sectionPickerOpen && canEdit && (
-              <div className="absolute right-0 top-11 z-50 w-[430px] rounded-2xl border border-white/10 bg-[#202126] p-3 shadow-2xl">
-                <div className="mb-2 flex items-center justify-between px-1">
-                  <div>
-                    <p className="text-xs font-semibold text-white">Add a document page</p>
-                    <p className="mt-0.5 text-[10px] text-white/40">Uses the current Vizcom design data where available</p>
-                  </div>
-                  <button aria-label="Close page picker" type="button" onClick={() => setSectionPickerOpen(false)} className="rounded-md p-1 text-white/45 hover:bg-white/5 hover:text-white"><X className="h-4 w-4" /></button>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {TECH_PACK_SECTION_OPTIONS.map((option) => (
-                    <button key={option.id} type="button" onClick={() => addPage(option.id)} className="rounded-xl border border-white/8 bg-white/[0.03] p-3 text-left hover:border-[#6962FF] hover:bg-[#6962FF]/10">
-                      <span className="block text-xs font-semibold text-white/90">{option.label}</span>
-                      <span className="mt-1 block text-[10px] leading-4 text-white/40">{option.description}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-          <button className="flex h-8 items-center gap-2 rounded-md bg-[#5B55F7] px-3 text-[11px] font-medium hover:bg-[#6B65FF]" type="button" onClick={openPrintView}>
-            <Download className="h-4 w-4" /> Export static copy
+          <button className="flex h-8 items-center gap-2 rounded-md border border-white/10 px-3 text-[11px] text-white/65 hover:bg-white/5" type="button" onClick={openPrintView}>
+            <Download className="h-4 w-4" /> Export
           </button>
         </div>
       </header>
@@ -463,7 +466,7 @@ export function TechPackSpike({
               </div>
             </details>
           ) : null}
-          <label className="mb-3 flex h-8 items-center justify-between rounded-md border border-white/[0.08] bg-white/[0.025] px-2.5 text-[10px] text-white/40">
+          {canEdit && <label className="mb-3 flex h-8 items-center justify-between rounded-md border border-white/[0.08] bg-white/[0.025] px-2.5 text-[10px] text-white/40">
             <span>Template</span>
             <select
               aria-label="Create from template"
@@ -474,7 +477,7 @@ export function TechPackSpike({
             >
               {TECH_PACK_TEMPLATES.map((template) => <option key={template.id} value={template.id} className="bg-[#202126]">{template.label}</option>)}
             </select>
-          </label>
+          </label>}
           <div className="mb-3 flex items-center justify-between">
             <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/40">Pages</span>
             <span className="text-[11px] text-white/30">{pages.length}</span>
@@ -525,34 +528,8 @@ export function TechPackSpike({
         </aside>
 
         <section ref={canvasContainerRef} className="relative block min-w-0 flex-1 overflow-auto bg-[#202125]">
-          <div className="sticky top-0 z-20 flex h-10 items-center justify-center gap-3 border-b border-white/[0.07] bg-[#18191C]/95 text-[10px] text-white/45 backdrop-blur">
-            <div className="flex rounded-md border border-white/10 bg-black/20 p-0.5">
-              <button
-                type="button"
-                aria-pressed={viewMode === "document"}
-                onPointerDown={(event) => {
-                  event.stopPropagation();
-                  setViewMode("document");
-                }}
-                className={`rounded px-2 py-1 ${viewMode === "document" ? "bg-white/10 text-white" : "text-white/40"}`}
-              >
-                Annotate
-              </button>
-              <button
-                type="button"
-                aria-pressed={viewMode === "static"}
-                onPointerDown={(event) => {
-                  event.stopPropagation();
-                  setViewMode("static");
-                }}
-                className={`rounded px-2 py-1 ${viewMode === "static" ? "bg-white/10 text-white" : "text-white/40"}`}
-              >
-                Static preview
-              </button>
-            </div>
-            <span className="hidden text-white/35 xl:inline">
-              {layoutLocked ? "Layout protected · zoom and review" : "Edit text, images, and callouts · choose Done when finished"}
-            </span>
+          <div className="sticky top-0 z-20 flex h-10 items-center justify-center border-b border-white/[0.07] bg-[#18191C]/95 text-[10px] text-white/45 backdrop-blur">
+            <span>{activePage.title} · {activeIndex + 1} of {pages.length}</span>
             <div className="absolute right-3 flex h-7 items-center rounded-md border border-white/10 bg-black/20">
               <button aria-label="Zoom out" type="button" onClick={() => changeZoom(-0.1)} className="grid h-7 w-7 place-items-center text-white/55 hover:text-white"><Minus className="h-3.5 w-3.5" /></button>
               <button type="button" onClick={() => setManualScale(null)} className="min-w-12 px-1 text-center text-[10px] text-white/55 hover:text-white" title="Fit page">{Math.round(displayScale * 100)}%</button>
@@ -566,7 +543,7 @@ export function TechPackSpike({
             >
               <div className="relative origin-top-left" style={{ width: TECH_PACK_PAGE_SIZE.width, height: TECH_PACK_PAGE_SIZE.height, transform: `scale(${displayScale})` }}>
                 <TemplateV2KonvaSlide
-                  key={`${activePage.id}-${viewMode}`}
+                  key={activePage.id}
                   layout={activePage.layout}
                   isEditMode={canEdit}
                   slideId={activePage.id}
