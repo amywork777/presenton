@@ -3,8 +3,18 @@ describe("Vizcom Tech Pack editor spike", () => {
     cy.visit("/tech-pack-spike");
 
     cy.contains("Performance Runner 001").should("be.visible");
+    cy.contains("Interactive document").should("be.visible");
     cy.contains("Upper specification").should("be.visible");
     cy.contains("Runner Tech Pack Sources").should("be.visible");
+    cy.window().then((win) => {
+      cy.stub(win.parent, "postMessage").as("postMessage");
+    });
+    cy.contains("Interactive assets").click();
+    cy.contains("button", "Assembly motion study").click();
+    cy.get("@postMessage").should("have.been.calledWithMatch", {
+      type: "vizcom-docs:open-source",
+      elementId: "video-assembly",
+    });
     cy.contains("button", "Annotate").should("have.attr", "aria-pressed", "true");
     cy.contains("button", "Edit content").click();
     cy.contains("button", "Done").should("have.attr", "aria-pressed", "true");

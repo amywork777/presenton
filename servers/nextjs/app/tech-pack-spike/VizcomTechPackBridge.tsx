@@ -6,6 +6,7 @@ import type { TechPackDocument } from "./techPackModel";
 
 export const VIZCOM_TECH_PACK_OPEN = "vizcom-tech-pack:open";
 export const VIZCOM_TECH_PACK_READY = "vizcom-tech-pack:ready";
+export const VIZCOM_DOCS_OPEN_SOURCE = "vizcom-docs:open-source";
 
 type TechPackOpenMessage = {
   type: typeof VIZCOM_TECH_PACK_OPEN;
@@ -25,9 +26,9 @@ const isTechPackDocument = (value: unknown): value is TechPackDocument => {
 };
 
 /**
- * Keeps the slide editor independent from Vizcom's React tree. The Workbench
- * owns the manufacturing document and sends a structured snapshot after this
- * embedded editor announces that it is ready.
+ * The Workbench owns the living document. This embedded surface renders its
+ * pages and sends source-navigation intents back to the Workbench instead of
+ * becoming a separate destination or a second source of truth.
  */
 export function VizcomTechPackBridge({
   fallback,
@@ -54,5 +55,16 @@ export function VizcomTechPackBridge({
     return () => window.removeEventListener("message", receive);
   }, []);
 
-  return <TechPackSpike key={document.id} document={document} />;
+  return (
+    <TechPackSpike
+      key={document.id}
+      document={document}
+      onOpenSource={(elementId) => {
+        window.parent.postMessage(
+          { type: VIZCOM_DOCS_OPEN_SOURCE, elementId },
+          "*",
+        );
+      }}
+    />
+  );
 }

@@ -133,7 +133,13 @@ function sourceKindLabel(kind: TechPackSourceAsset["kind"]) {
   return kind.replace("-", " ");
 }
 
-export function TechPackSpike({ document }: { document: TechPackDocument }) {
+export function TechPackSpike({
+  document,
+  onOpenSource,
+}: {
+  document: TechPackDocument;
+  onOpenSource?: (elementId: string) => void;
+}) {
   const [workingDocument, setWorkingDocument] = useState(document);
   const [templateId, setTemplateId] = useState<TechPackTemplateId>("upper-two-page");
   const initialPages = useMemo(() => techPackToEditorPages(document, "upper-two-page"), [document]);
@@ -344,7 +350,7 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
             <p className="truncate text-[10px] text-white/40">
               {workingDocument.sourceSection
                 ? `${workingDocument.sourceSection.title} · ${workingDocument.sourceSection.assets.length + 1} linked workbench items`
-                : "Tech Pack"} · {savedAt}
+                : "Tech Pack"} · Interactive document · {savedAt}
             </p>
           </div>
         </div>
@@ -399,7 +405,7 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
             )}
           </div>
           <button className="flex h-8 items-center gap-2 rounded-md bg-[#5B55F7] px-3 text-[11px] font-medium hover:bg-[#6B65FF]" type="button" onClick={openPrintView}>
-            <Download className="h-4 w-4" /> Export PDF / PLM
+            <Download className="h-4 w-4" /> Export static copy
           </button>
         </div>
       </header>
@@ -421,7 +427,7 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
           {workingDocument.sourceSection?.assets.length ? (
             <details className="mb-3 rounded-lg border border-white/[0.08] bg-white/[0.02] text-[10px]">
               <summary className="cursor-pointer list-none px-3 py-2.5 font-medium text-white/65">
-                Final assets <span className="ml-1 text-white/30">{workingDocument.sourceSection.assets.length}</span>
+                Interactive assets <span className="ml-1 text-white/30">{workingDocument.sourceSection.assets.length}</span>
               </summary>
               <div className="max-h-40 space-y-1 overflow-y-auto border-t border-white/[0.07] p-2">
                 {workingDocument.sourceSection.assets.map((asset) => {
@@ -432,10 +438,19 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
                       <span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[8px] uppercase tracking-wide text-[#9D98FF]">
                         {sourceKindLabel(asset.kind)}
                       </span>
-                      {href ? <span className="text-white/30">↗</span> : null}
+                      <span className="text-white/30">Workbench ↗</span>
                     </>
                   );
-                  return href ? (
+                  return onOpenSource ? (
+                    <button
+                      key={asset.id}
+                      type="button"
+                      onClick={() => onOpenSource(asset.id)}
+                      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-white/[0.05]"
+                    >
+                      {content}
+                    </button>
+                  ) : href ? (
                     <a key={asset.id} href={href} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-white/[0.05]">
                       {content}
                     </a>
