@@ -1,15 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import {
   Check,
   Copy,
   Download,
   FilePlus2,
   GripVertical,
+  ImagePlus,
+  Lock,
   MessageSquarePlus,
+  Minus,
   Pencil,
+  Plus,
   Trash2,
+  Unlock,
   X,
 } from "lucide-react";
 import { TemplateV2KonvaSlide } from "@/components/slide-editor/surface/TemplateV2KonvaSlide";
@@ -110,6 +115,19 @@ function newCalloutElements(index: number): SlideElement[] {
   ];
 }
 
+function newImageElement(data: string, index: number): SlideElement {
+  return {
+    type: "image",
+    position: { x: 392, y: 190 },
+    size: { width: 440, height: 300 },
+    data,
+    fit: "contain",
+    border_radius: { tl: 8, tr: 8, bl: 8, br: 8 },
+    decorative: false,
+    name: `user_image_${index}`,
+  };
+}
+
 export function TechPackSpike({ document }: { document: TechPackDocument }) {
   const [workingDocument, setWorkingDocument] = useState(document);
   const [templateId, setTemplateId] = useState<TechPackTemplateId>("upper-two-page");
@@ -117,7 +135,9 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
   const [pages, setPages] = useState(initialPages);
   const [activePageId, setActivePageId] = useState(initialPages[0].id);
   const [savedAt, setSavedAt] = useState("Saved from Vizcom data");
-  const [displayScale, setDisplayScale] = useState(0.62);
+  const [fitScale, setFitScale] = useState(0.62);
+  const [manualScale, setManualScale] = useState<number | null>(null);
+  const [layoutLocked, setLayoutLocked] = useState(true);
   const [calloutCount, setCalloutCount] = useState(document.parts.length);
   const [viewMode, setViewMode] = useState<"document" | "static">("document");
   const [sectionPickerOpen, setSectionPickerOpen] = useState(false);
@@ -125,6 +145,7 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
   const [renamingPageId, setRenamingPageId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const canvasContainerRef = useRef<HTMLElement | null>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
   const sourceDocumentRef = useRef(document);
   const sectionInstanceRef = useRef(0);
   const numberedPages = useMemo(() => numberTechPackPages(pages), [pages]);
@@ -132,13 +153,15 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
   const activePage = numberedPages[activeIndex];
   const supportingImageCount = workingDocument.sourceSection?.assets.filter((asset) => asset.imageUrl).length ?? 0;
   const supportingItemCount = workingDocument.sourceSection?.assets.length ?? 0;
+  const displayScale = manualScale ?? fitScale;
+  const canEdit = viewMode === "document" && !layoutLocked;
 
   useEffect(() => {
     const container = canvasContainerRef.current;
     if (!container) return;
     const updateScale = () => {
       const availableWidth = Math.max(320, container.clientWidth - 80);
-      setDisplayScale(Math.max(0.25, Math.min(0.74, availableWidth / TECH_PACK_PAGE_SIZE.width)));
+      setFitScale(Math.max(0.25, Math.min(0.74, availableWidth / TECH_PACK_PAGE_SIZE.width)));
     };
     updateScale();
     const observer = new ResizeObserver(updateScale);
@@ -183,7 +206,7 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
   };
 
   const addCallout = () => {
-    if (viewMode === "static") return;
+    if (!canEdit) return;
     const nextCallout = calloutCount + 1;
     const detail: TemplateV2InsertElementsDetail = {
       elements: newCalloutElements(nextCallout),
@@ -195,7 +218,7 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
   };
 
   const chooseTemplate = (nextTemplateId: TechPackTemplateId) => {
-    if (viewMode === "static") return;
+    if (!canEdit) return;
     const generatedPages = techPackToEditorPages(workingDocument, nextTemplateId);
     const nextPages = [...generatedPages, ...pages.filter((page) => !page.sourceManaged)];
     setTemplateId(nextTemplateId);
@@ -205,6 +228,7 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
   };
 
   const addPage = (sectionType: TechPackSectionType) => {
+    if (!canEdit) return;
     sectionInstanceRef.current += 1;
     const page = createTechPackSectionPage(
       workingDocument,
@@ -218,6 +242,7 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
   };
 
   const duplicatePage = (page: TechPackEditorPage) => {
+    if (!canEdit) return;
     sectionInstanceRef.current += 1;
     const copy = structuredClone(page);
     copy.id = `custom-${page.sectionType}-${Date.now()}-${sectionInstanceRef.current}`;
@@ -234,6 +259,7 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
   };
 
   const deletePage = (pageId: string) => {
+    if (!canEdit) return;
     if (pages.length === 1) return;
     const index = pages.findIndex((page) => page.id === pageId);
     const next = pages.filter((page) => page.id !== pageId);
@@ -243,6 +269,7 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
   };
 
   const startRename = (page: TechPackEditorPage) => {
+    if (!canEdit) return;
     setRenamingPageId(page.id);
     setRenameDraft(page.title);
   };
@@ -256,6 +283,7 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
   };
 
   const reorderPage = (targetPageId: string) => {
+    if (!canEdit) return;
     if (!draggedPageId || draggedPageId === targetPageId) return;
     setPages((current) => {
       const from = current.findIndex((page) => page.id === draggedPageId);
@@ -273,6 +301,28 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
   const openPrintView = () => {
     window.localStorage.setItem("vizcom-tech-pack-spike-pages", JSON.stringify(numberedPages));
     window.open("/tech-pack-spike/print", "_blank", "noopener,noreferrer");
+  };
+
+  const insertImage = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !canEdit) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== "string") return;
+      const detail: TemplateV2InsertElementsDetail = {
+        elements: [newImageElement(reader.result, Date.now())],
+        label: "Supporting image",
+        slideIndex: activeIndex,
+      };
+      window.dispatchEvent(new CustomEvent(TEMPLATE_V2_INSERT_ELEMENTS_EVENT, { detail }));
+      setSavedAt("Image added · source links preserved");
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const changeZoom = (delta: number) => {
+    setManualScale(Math.max(0.3, Math.min(1.25, displayScale + delta)));
   };
 
   return (
@@ -294,12 +344,28 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button disabled={viewMode === "static"} className="flex h-8 items-center gap-2 rounded-md border border-white/10 px-2.5 text-[11px] text-white/65 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-35" type="button" onClick={addCallout}>
+          <button
+            aria-pressed={!layoutLocked}
+            className={`flex h-8 items-center gap-2 rounded-md border px-2.5 text-[11px] ${layoutLocked ? "border-white/10 text-white/65 hover:bg-white/5" : "border-[#6962FF]/70 bg-[#6962FF]/15 text-white"}`}
+            type="button"
+            onClick={() => {
+              setViewMode("document");
+              setLayoutLocked((locked) => !locked);
+            }}
+          >
+            {layoutLocked ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
+            {layoutLocked ? "Layout locked" : "Editing content"}
+          </button>
+          <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={insertImage} />
+          <button disabled={!canEdit} className="flex h-8 items-center gap-2 rounded-md border border-white/10 px-2.5 text-[11px] text-white/65 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-35" type="button" onClick={() => imageInputRef.current?.click()}>
+            <ImagePlus className="h-4 w-4" /> Add image
+          </button>
+          <button disabled={!canEdit} className="flex h-8 items-center gap-2 rounded-md border border-white/10 px-2.5 text-[11px] text-white/65 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-35" type="button" onClick={addCallout}>
             <MessageSquarePlus className="h-4 w-4" /> Add callout
           </button>
           <div className="relative">
             <button
-              disabled={viewMode === "static"}
+              disabled={!canEdit}
               aria-expanded={sectionPickerOpen}
               className="flex h-8 items-center gap-2 rounded-md border border-white/10 px-2.5 text-[11px] text-white/65 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-35"
               type="button"
@@ -307,7 +373,7 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
             >
               <FilePlus2 className="h-4 w-4" /> Add page
             </button>
-            {sectionPickerOpen && viewMode === "document" && (
+            {sectionPickerOpen && canEdit && (
               <div className="absolute right-0 top-11 z-50 w-[430px] rounded-2xl border border-white/10 bg-[#202126] p-3 shadow-2xl">
                 <div className="mb-2 flex items-center justify-between px-1">
                   <div>
@@ -350,7 +416,7 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
             <select
               aria-label="Create from template"
               value={templateId}
-              disabled={viewMode === "static"}
+              disabled={!canEdit}
               onChange={(event) => chooseTemplate(event.target.value as TechPackTemplateId)}
               className="max-w-[130px] bg-transparent text-right text-[10px] font-medium text-white/70 outline-none"
             >
@@ -365,7 +431,7 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
             {numberedPages.map((page, index) => (
               <article
                 key={page.id}
-                draggable={viewMode === "document" && renamingPageId !== page.id}
+                draggable={canEdit && renamingPageId !== page.id}
                 onDragStart={() => setDraggedPageId(page.id)}
                 onDragEnd={() => setDraggedPageId(null)}
                 onDragOver={(event) => event.preventDefault()}
@@ -380,7 +446,7 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
                   </div>
                 </button>
                 <div className="mt-2 flex min-w-0 items-center gap-1 text-xs">
-                  {viewMode === "document" && <GripVertical className="h-3.5 w-3.5 shrink-0 cursor-grab text-white/25" />}
+                  {canEdit && <GripVertical className="h-3.5 w-3.5 shrink-0 cursor-grab text-white/25" />}
                   <span className="shrink-0 text-white/35">{String(index + 1).padStart(2, "0")}</span>
                   {renamingPageId === page.id ? (
                     <form className="flex min-w-0 flex-1 items-center gap-1" onSubmit={(event) => { event.preventDefault(); saveRename(); }}>
@@ -391,7 +457,7 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
                   ) : (
                     <>
                       <button type="button" onClick={() => setActivePageId(page.id)} className="min-w-0 flex-1 truncate text-left text-white/75">{page.title}</button>
-                      {viewMode === "document" && (
+                      {canEdit && (
                         <div className="flex shrink-0 items-center">
                           <button aria-label={`Rename ${page.title}`} title="Rename" type="button" onClick={() => startRename(page)} className="rounded p-1 text-white/30 hover:bg-white/5 hover:text-white"><Pencil className="h-3.5 w-3.5" /></button>
                           <button aria-label={`Duplicate ${page.title}`} title="Duplicate" type="button" onClick={() => duplicatePage(page)} className="rounded p-1 text-white/30 hover:bg-white/5 hover:text-white"><Copy className="h-3.5 w-3.5" /></button>
@@ -407,7 +473,7 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
         </aside>
 
         <section ref={canvasContainerRef} className="relative block min-w-0 flex-1 overflow-auto bg-[#202125]">
-          <div className="sticky top-0 z-20 flex h-10 items-center justify-center border-b border-white/[0.07] bg-[#18191C]/95 text-[10px] text-white/45 backdrop-blur">
+          <div className="sticky top-0 z-20 flex h-10 items-center justify-center gap-3 border-b border-white/[0.07] bg-[#18191C]/95 text-[10px] text-white/45 backdrop-blur">
             <div className="flex rounded-md border border-white/10 bg-black/20 p-0.5">
               <button
                 type="button"
@@ -432,7 +498,14 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
                 Static preview
               </button>
             </div>
-            <span className="absolute right-4">{Math.round(displayScale * 100)}%</span>
+            <span className="hidden text-white/35 xl:inline">
+              {layoutLocked ? "Review mode · unlock to edit text, images, and callouts" : "Content editing · page layout unlocked"}
+            </span>
+            <div className="absolute right-3 flex h-7 items-center rounded-md border border-white/10 bg-black/20">
+              <button aria-label="Zoom out" type="button" onClick={() => changeZoom(-0.1)} className="grid h-7 w-7 place-items-center text-white/55 hover:text-white"><Minus className="h-3.5 w-3.5" /></button>
+              <button type="button" onClick={() => setManualScale(null)} className="min-w-12 px-1 text-center text-[10px] text-white/55 hover:text-white" title="Fit page">{Math.round(displayScale * 100)}%</button>
+              <button aria-label="Zoom in" type="button" onClick={() => changeZoom(0.1)} className="grid h-7 w-7 place-items-center text-white/55 hover:text-white"><Plus className="h-3.5 w-3.5" /></button>
+            </div>
           </div>
           <div className="flex min-h-[calc(100%-40px)] items-start justify-center p-7">
             <div
@@ -443,7 +516,7 @@ export function TechPackSpike({ document }: { document: TechPackDocument }) {
                 <TemplateV2KonvaSlide
                   key={`${activePage.id}-${viewMode}`}
                   layout={activePage.layout}
-                  isEditMode={viewMode === "document"}
+                  isEditMode={canEdit}
                   slideId={activePage.id}
                   slideIndex={activeIndex}
                   renderIndex={activeIndex}
